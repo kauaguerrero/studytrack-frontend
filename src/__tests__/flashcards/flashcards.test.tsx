@@ -28,10 +28,10 @@ describe('Flashcards', () => {
       { id: 'D2', title: 'Meu', subject: null, discipline: null, mine: true, card_count: 3, due: 0, new: 0, today: 0 },
     ] });
     render(<StudentFlashcards />);
-    expect(await screen.findByText('Química')).toBeInTheDocument();
+    expect((await screen.findAllByText('Química')).length).toBeGreaterThan(0);
     expect(screen.getByText('12 cartões para hoje.', { exact: false })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Estudar 12' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Em dia' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Em dia ✓' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Editar Meu' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Editar Química' })).toBeNull();
   });

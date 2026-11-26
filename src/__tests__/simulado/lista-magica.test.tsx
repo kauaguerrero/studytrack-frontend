@@ -60,7 +60,7 @@ describe('Lista mágica', () => {
     unmount();
     fetchMock.mockResolvedValueOnce({ enabled: true, list: { ...LIST, status: 'empty', topics: [], total_questions: 0 } });
     render(<ListaMagica />);
-    expect(await screen.findByText(/Ainda sem temas/)).toBeInTheDocument();
+    expect(await screen.findByText(/Sua lista começa com as suas respostas/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Começar/ })).toBeNull();
   });
 });

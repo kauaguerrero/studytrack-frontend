@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Bell, Share, SquarePlus, X } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { ensurePushSubscription, isPushSupported, requestAndSubscribe } from '@/lib/push';
@@ -73,6 +74,8 @@ function isIOS(): boolean {
 
 export function PushManager() {
   const { currentPopup } = usePopupQueue();
+  // Só no Início: nas outras telas o convite cobria o conteúdo (calendário, listas).
+  const onHome = /\/student\/dashboard\/?$/.test(usePathname() ?? '');
   const [prompt, setPrompt] = useState<PromptKind | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -178,7 +181,7 @@ export function PushManager() {
   };
 
   // Nunca por cima de popup de gamificação; nunca antes do delay inicial.
-  if (!ready || prompt === null || currentPopup !== null) return null;
+  if (!onHome || !ready || prompt === null || currentPopup !== null) return null;
 
   const ios = prompt === 'a2hs' && isIOS();
 

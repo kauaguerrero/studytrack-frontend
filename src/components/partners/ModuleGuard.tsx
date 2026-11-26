@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useOrg } from '@/contexts/OrgContext';
 
 interface ModuleGuardProps {
@@ -20,6 +20,9 @@ interface ModuleGuardProps {
 export function ModuleGuard({ permKey, defaultEnabled = true, children }: ModuleGuardProps) {
   const { org } = useOrg();
   const router = useRouter();
+  const pathname = usePathname() ?? '';
+  // aluno volta para o Início dele; o /dashboard do gestor quebra para quem é aluno
+  const home = pathname.includes('/student/') ? `/partners/${org.slug}/student/dashboard` : `/partners/${org.slug}/dashboard`;
 
   const perms = org.permissions;
   const isEnabled =
@@ -31,9 +34,9 @@ export function ModuleGuard({ permKey, defaultEnabled = true, children }: Module
 
   useEffect(() => {
     if (!isEnabled) {
-      router.replace(`/partners/${org.slug}/dashboard`);
+      router.replace(home);
     }
-  }, [isEnabled, router, org.slug]);
+  }, [isEnabled, router, home]);
 
   if (!isEnabled) return null;
   return <>{children}</>;

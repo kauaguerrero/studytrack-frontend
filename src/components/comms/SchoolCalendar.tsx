@@ -5,13 +5,13 @@
 // Aluno vê o que a turma dele vê; gestor (manage) vê tudo e cria/edita/exclui
 // eventos (um dia da série ou a série inteira) e tira dias dos avisos da escola.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Loader2, MapPin, Megaphone, Plus, Repeat, Trash2, X } from 'lucide-react';
+import { CalendarCheck2, CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Loader2, MapPin, Megaphone, Plus, Repeat, Trash2, X } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgClasses } from '@/lib/org-classes';
-import { HeroStat, PageShell, pageCard } from '@/components/partners/PageShell';
+import { PageShell, pageCard } from '@/components/partners/PageShell';
 import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
 import { CalendarFields, EMPTY_CALENDAR, calendarFrom, recurrencePayload, type CalendarValue } from '@/components/comms/CalendarFields';
 import { EVENT_KINDS, EVENT_KIND_COLOR, EVENT_KIND_LABEL, commsFetch, type CalendarItem, type EventKind } from '@/lib/org-comms';
@@ -60,6 +60,19 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
   const [busy, setBusy] = useState(false);
 
   const grid = useMemo(() => monthGrid(cursor.y, cursor.m), [cursor]);
+  const visibleGrid = useMemo(() => {
+    const first = new Date(cursor.y, cursor.m, 1).getDay();
+    const days = new Date(cursor.y, cursor.m + 1, 0).getDate();
+    return grid.slice(0, Math.ceil((first + days) / 7) * 7);
+  }, [grid, cursor]);
+  const panelRef = useRef<HTMLElement>(null);
+  // no celular o painel do dia fica embaixo da grade: rola até ele ao tocar num dia
+  const pick = (k: string) => {
+    setSelected(k);
+    if (typeof window !== 'undefined' && window.innerWidth < 1280) {
+      requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+    }
+  };
   const load = useCallback(async () => {
     setItems(null);
     try {
@@ -155,11 +168,12 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
     : EVENT_KIND_LABEL[it.kind];
   const canEditAnn = (it: CalendarItem) => manage && it.source === 'announcement' && it.announcement_source === 'school';
 
-  // Números do hero: itens do mês visível e o próximo a partir de agora.
-  const monthCount = (items ?? []).filter((it) => new Date(`${it.occurrence_date ?? it.starts_at.slice(0, 10)}T12:00:00`).getMonth() === cursor.m).length;
-  const nextItem = (items ?? [])
-    .filter((it) => new Date(it.starts_at).getTime() >= Date.now() - 3600_000)
-    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))[0];
+  const todayKey = iso(today);
+  const dayOf = (it: CalendarItem) => it.occurrence_date ?? iso(new Date(it.starts_at));
+  const upcoming = (items ?? [])
+    .filter((it) => dayOf(it) >= todayKey && dayOf(it) !== selected)
+    .sort((a, b) => (dayOf(a) + a.starts_at).localeCompare(dayOf(b) + b.starts_at))
+    .slice(0, 5);
 
   const timeShort = (it: CalendarItem) => (it.all_day ? '' : new Date(it.starts_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
 
@@ -178,11 +192,6 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
           <Plus className="h-4 w-4" /> Novo evento
         </button>
       ) : undefined}
-      aside={manage ? undefined : (<>
-        <HeroStat label={`Em ${MONTHS[cursor.m].toLowerCase()}`} value={items === null ? '…' : monthCount} hint={monthCount === 1 ? 'item no calendário' : 'itens no calendário'} />
-        <HeroStat label="Próximo" value={nextItem ? new Date(nextItem.starts_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '—'}
-          hint={nextItem ? nextItem.title : 'Nada marcado à frente'} />
-      </>)}
     >
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className={`${pageCard} p-3 sm:p-5`}>
@@ -202,21 +211,22 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
             {WD.map((w) => <span key={w}>{w}</span>)}
           </div>
           <div className="mt-1.5 grid grid-cols-7 gap-1 sm:gap-1.5">
-            {grid.map((d) => {
+            {visibleGrid.map((d) => {
               const k = iso(d);
               const its = byDay.get(k) ?? [];
               const out = d.getMonth() !== cursor.m;
               const isSel = k === selected;
               const isToday = k === iso(today);
               return (
-                <button key={k} type="button" onClick={() => setSelected(k)} aria-label={`Dia ${d.getDate()}${its.length ? `, ${its.length} item(ns)` : ''}`}
-                  className={`flex min-h-[64px] flex-col items-stretch rounded-xl border p-1 text-left text-xs transition sm:min-h-[104px] sm:p-1.5 ${isSel ? 'border-transparent' : 'border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5'} ${out ? 'opacity-40' : ''}`}
+                <button key={k} type="button" onClick={() => pick(k)} aria-label={`Dia ${d.getDate()}${its.length ? `, ${its.length} item(ns)` : ''}`}
+                  title={its.map((it) => it.title).join('\n') || undefined}
+                  className={`flex min-h-[54px] flex-col items-stretch rounded-xl border p-1 text-left text-xs transition sm:min-h-[100px] sm:p-1.5 xl:min-h-[112px] ${isSel ? 'border-transparent bg-white dark:bg-white/5' : 'border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5'} ${out ? 'opacity-35' : ''} ${its.length && !isSel ? 'bg-slate-50/60 dark:bg-white/[0.03]' : ''}`}
                   style={isSel ? { boxShadow: '0 0 0 2px var(--brand-primary)' } : undefined}>
                   <span className={`self-center font-bold sm:self-start ${isToday ? 'rounded-full px-1.5 text-white' : 'text-slate-700 dark:text-white/80'}`}
                     style={isToday ? { background: 'var(--brand-primary)' } : undefined}>{d.getDate()}</span>
                   {/* celular: só os pontos; tela maior: título e horário de cada item */}
                   <span className="mt-1 flex flex-wrap justify-center gap-0.5 sm:hidden" aria-hidden>
-                    {its.slice(0, 3).map((it) => <span key={`${it.source}-${it.id}`} className="h-1.5 w-1.5 rounded-full" style={{ background: EVENT_KIND_COLOR[it.kind] }} />)}
+                    {its.slice(0, 3).map((it) => <span key={`${it.source}-${it.id}`} className="h-2 w-2 rounded-full" style={{ background: EVENT_KIND_COLOR[it.kind] }} />)}
                   </span>
                   <span className="mt-1 hidden min-w-0 flex-col gap-0.5 sm:flex" aria-hidden>
                     {its.slice(0, 3).map((it) => (
@@ -238,13 +248,17 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
           </div>
         </section>
 
-        <section className={`${pageCard} p-4 sm:p-5 xl:sticky xl:top-4 xl:self-start`} aria-label="Eventos do dia">
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+        <section ref={panelRef} className={`${pageCard} scroll-mt-4 p-4 sm:p-5`} aria-label="Eventos do dia">
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Dia selecionado</p>
-          <p className="mt-0.5 text-base font-black capitalize text-slate-900 dark:text-white">
+          <p className="mt-0.5 text-base font-black text-slate-900 first-letter:uppercase dark:text-white">
             {new Date(`${selected}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
           </p>
           {dayItems.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500 dark:text-white/55">Nada marcado neste dia.</p>
+            <div className="mt-3 flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3.5 dark:bg-white/5">
+              <CalendarCheck2 className="h-5 w-5 shrink-0 text-slate-400" />
+              <p className="text-[13px] text-slate-500 dark:text-white/55">Dia livre: nada marcado.{manage ? '' : ' Bom dia para adiantar o cronograma.'}</p>
+            </div>
           ) : (
             <ul className="mt-3 space-y-2">
               {dayItems.map((it) => (
@@ -292,6 +306,37 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
             </ul>
           )}
         </section>
+
+        <section className={`${pageCard} p-4 sm:p-5`} aria-label="Próximos">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Próximos</p>
+          {items === null ? (
+            <div className="mt-3 space-y-2">{[0, 1].map((i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100 dark:bg-white/5" />)}</div>
+          ) : upcoming.length === 0 ? (
+            <p className="mt-2 text-[13px] text-slate-500 dark:text-white/55">Nada mais marcado em {MONTHS[cursor.m].toLowerCase()}.</p>
+          ) : (
+            <ul className="mt-2 divide-y divide-slate-100 dark:divide-white/5">
+              {upcoming.map((it) => {
+                const d = new Date(`${dayOf(it)}T12:00:00`);
+                return (
+                  <li key={`up-${it.source}-${it.id}-${it.occurrence_date}`}>
+                    <button type="button" onClick={() => pick(dayOf(it))} className="flex w-full items-center gap-3 py-2.5 text-left">
+                      <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl text-white"
+                        style={{ background: EVENT_KIND_COLOR[it.kind] }}>
+                        <span className="text-[9px] font-bold uppercase leading-none opacity-80">{d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</span>
+                        <span className="font-display text-[17px] font-black leading-none">{d.getDate()}</span>
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13.5px] font-bold text-slate-900 dark:text-white">{it.title}</span>
+                        <span className="block truncate text-[11.5px] text-slate-500 dark:text-white/55">{kindLabel(it)} · {timeLabel(it)}</span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+        </aside>
       </div>
 
       {editing && (

@@ -65,7 +65,7 @@ export function SetupWizard({
   };
 
   return (
-    <ElevatedCard className="mx-auto max-w-2xl" accentColor="var(--brand-ink)">
+    <ElevatedCard className="w-full" accentColor="var(--brand-ink)">
       <div className="p-5 lg:p-7">
         <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--brand-ink)' }}>
           Passo {step + 1} de 3

@@ -15,7 +15,7 @@ vi.mock('@/components/questions/QuestionRichText', () => ({ QuestionRichText: ({
 vi.mock('@/components/partners/founder-ui', () => {
   const Box = ({ children, className }: { children?: React.ReactNode; className?: string }) => <div className={className}>{children}</div>;
   return {
-    RevealGroup: Box, RevealItem: Box, ElevatedCard: Box,
+    RevealGroup: Box, RevealItem: Box, ElevatedCard: Box, BrandHero: Box, HERO_ACCENT_COLOR: '#fff',
     SectionTitle: ({ title, action }: { title: string; action?: React.ReactNode }) => <h2>{title}{action}</h2>,
     Segmented: ({ options, value, onChange }: { options: { value: string; label: string }[]; value: string; onChange: (v: string) => void }) => (
       <div>{options.map((o) => <button key={o.value} type="button" aria-pressed={o.value === value} onClick={() => onChange(o.value)}>{o.label}</button>)}</div>

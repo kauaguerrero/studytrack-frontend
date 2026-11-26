@@ -49,7 +49,7 @@ describe('timer', () => {
   it('CT-T02 sem timer aberto: começa com a matéria escolhida', async () => {
     fakeBackend(null);
     render(<StudyTimerPage />);
-    fireEvent.change(await screen.findByLabelText('Matéria'), { target: { value: 'Química' } });
+    fireEvent.click(await screen.findByRole('radio', { name: 'Química' }));
     fireEvent.change(screen.getByLabelText('Assunto'), { target: { value: 'Estequiometria' } });
     fireEvent.click(screen.getByRole('button', { name: /Começar/ }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('cenas', '/timer/start', expect.objectContaining({ method: 'POST' })));

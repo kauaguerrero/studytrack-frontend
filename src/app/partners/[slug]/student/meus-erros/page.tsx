@@ -16,7 +16,7 @@ import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { useOrg } from '@/contexts/OrgContext';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
-import { HeroStat, StudentPage } from '@/components/partners/PageShell';
+import { EmptyState, HeroStat, StudentPage, primaryBtn } from '@/components/partners/PageShell';
 
 interface ErrorQuestion {
   id: string;
@@ -105,11 +105,11 @@ function MeusErros() {
       kicker="Estudar"
       icon={Flame}
       title="Meus erros"
-      aside={<>
-        <HeroStat label="Temas com erro" value={topics === null ? '…' : topics.length} hint="nos últimos meses" />
-        <HeroStat label="Mais quente" value={topics?.[0] ? topics[0].discipline : '—'} hint={topics?.[0] ? topics[0].subject : 'Nenhum erro recente'} />
-      </>}
-      description="Os temas em que você mais errou recentemente, somando banco de questões, simulados e provas. Errar esquenta o tema; acertar depois esfria."
+      aside={topics && topics.length > 0 ? <>
+        <HeroStat label="Temas com erro" value={topics.length} hint="nos últimos meses" />
+        <HeroStat label="Mais quente" value={topics[0].discipline} hint={topics[0].subject} />
+      </> : undefined}
+      description="Banco, simulados e provas juntos: errar esquenta o tema, acertar depois esfria."
     >
 
       {topics === null && !error && (
@@ -125,18 +125,15 @@ function MeusErros() {
       )}
 
       {topics && topics.length === 0 && (
-        <div className="partner-elevated-card flex flex-col items-center rounded-[24px] bg-white px-6 py-12 text-center dark:bg-slate-900">
-          <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-50 dark:bg-emerald-500/10">
-            <Snowflake className="h-8 w-8 text-emerald-500" />
-          </div>
-          <p className="font-display mt-4 text-xl font-black text-slate-900 dark:text-white">Tudo frio por aqui</p>
-          <p className="mt-1 max-w-sm text-sm text-slate-600 dark:text-slate-400">
-            Nenhum erro recente. Resolva questões e simulados: os temas que você errar aparecem aqui para revisar.
-          </p>
-          <Link href={bank} className="mt-5 inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-bold text-white shadow-sm" style={{ background: 'var(--brand-primary)' }}>
-            Ir para o banco de questões <ArrowRight size={16} />
-          </Link>
-        </div>
+        <EmptyState
+          icon={Snowflake}
+          tone="emerald"
+          title="Tudo frio por aqui"
+          description="Os temas em que você erra esquentam e aparecem aqui, do mais quente para o mais frio. Errou? Revise. Acertou depois? O tema esfria sozinho."
+          steps={['Resolva questões no banco ou faça um simulado', 'Cada erro esquenta o tema dele', 'Clique em Praticar para refazer só o que você errou']}
+          action={<Link href={bank} className={primaryBtn}>Ir para o banco de questões <ArrowRight size={16} /></Link>}
+          preview={<HeatPreview />}
+        />
       )}
 
       {topics && topics.length > 0 && (
@@ -235,5 +232,31 @@ function MeusErros() {
         </>
       )}
     </StudentPage>
+  );
+}
+
+/** Prévia decorativa do estado vazio: três temas com a barra de temperatura. */
+function HeatPreview() {
+  const rows = [
+    { s: 'Física', d: 'Cinemática', r: 0.92, c: '#ef4444', l: 'Quente' },
+    { s: 'Química', d: 'Soluções', r: 0.55, c: '#f59e0b', l: 'Morno' },
+    { s: 'História', d: 'Era Vargas', r: 0.22, c: '#38bdf8', l: 'Esfriando' },
+  ];
+  return (
+    <div className="mx-auto max-w-[400px] space-y-2.5">
+      {rows.map((t) => (
+        <div key={t.d} className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-3.5 pl-5 shadow-sm dark:border-white/10 dark:bg-slate-800">
+          <div className="absolute inset-y-0 left-0 w-1.5" style={{ background: t.c }} />
+          <div className="flex items-center justify-between">
+            <p className="text-[13.5px] font-black text-slate-900 dark:text-white">{t.d}</p>
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white" style={{ background: t.c }}>{t.l}</span>
+          </div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">{t.s}</p>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+            <div className="h-full rounded-full" style={{ width: `${t.r * 100}%`, background: 'linear-gradient(90deg, #38bdf8, #f59e0b, #ef4444)', backgroundSize: `${100 / t.r}% 100%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

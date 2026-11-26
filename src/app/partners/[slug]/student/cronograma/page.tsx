@@ -7,7 +7,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Loader2, CalendarDays, Clock, NotebookPen } from 'lucide-react';
+import { Loader2, CalendarDays, Clock, ListChecks, NotebookPen, RefreshCcw, Route, Target } from 'lucide-react';
+import { StudentPage, pageCard } from '@/components/partners/PageShell';
 import { CronogramaSkeleton } from '@/components/cronograma/CronogramaSkeleton';
 import { toast } from 'sonner';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
@@ -407,13 +408,31 @@ function CronogramaInner() {
   }
   if (!status.has_plan) {
     return (
-      <div className="px-4 py-6 lg:px-8">
-        <h1 className="font-display mb-1 text-center text-[26px] font-black text-slate-900 dark:text-white">Cronograma Inteligente</h1>
-        <p className="mx-auto mb-6 max-w-xl text-center text-[14px] text-slate-600 dark:text-white/65">
-          Um plano de estudos até o ENEM que respeita a ordem dos conteúdos, prioriza o que mais cai e agenda revisões no tempo certo para você não esquecer.
-        </p>
-        <SetupWizard defaults={status.defaults!} klass={status.class} leveling={status.leveling} onCreated={() => { setAnchor(null); loadStatus(); }} />
-      </div>
+      <StudentPage kicker="Meu dia" icon={ListChecks} title="Cronograma Inteligente"
+        description="Seu plano de estudos até o ENEM, montado em 3 passos.">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:items-start">
+          <SetupWizard defaults={status.defaults!} klass={status.class} leveling={status.leveling} onCreated={() => { setAnchor(null); loadStatus(); }} />
+          <div className={`${pageCard} p-5 sm:p-6`}>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">O que você ganha</p>
+            <ul className="mt-4 space-y-4">
+              {[
+                { icon: Route, color: '#6366f1', t: 'A ordem certa dos conteúdos', d: 'Um tema só aparece depois do que ele precisa como base.' },
+                { icon: Target, color: '#ef4444', t: 'Prioridade no que mais cai', d: 'O plano pesa a incidência no ENEM e os seus erros.' },
+                { icon: RefreshCcw, color: '#10b981', t: 'Revisão no dia certo', d: 'Cada tema volta antes de você esquecer, até a prova.' },
+                { icon: CalendarDays, color: '#f59e0b', t: 'Cabe na sua rotina', d: 'Você diz quanto tempo tem por dia; o resto ele ajusta.' },
+              ].map(({ icon: I, color, t, d }) => (
+                <li key={t} className="flex gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl" style={{ background: `${color}1f`, color }}><I className="h-5 w-5" /></span>
+                  <span>
+                    <span className="block text-[14px] font-bold text-slate-900 dark:text-white">{t}</span>
+                    <span className="block text-[12.5px] leading-snug text-slate-500 dark:text-slate-400">{d}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </StudentPage>
     );
   }
 

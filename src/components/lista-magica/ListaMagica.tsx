@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowRight, Flame, Loader2, Play, Sparkles, TrendingUp, Wand2 } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
-import { HeroStat, StudentPage } from '@/components/partners/PageShell';
+import { EmptyState, HeroStat, StudentPage, primaryBtn } from '@/components/partners/PageShell';
 import { MagicListFetchError, REASON_LABEL, magicListFetch, weekLabel, type MagicList } from '@/lib/lista-magica';
 
 export function ListaMagica() {
@@ -50,7 +50,13 @@ export function ListaMagica() {
   };
 
   if (failed && !list) return <p className="p-6 text-sm text-slate-500">Lista mágica indisponível.</p>;
-  if (!list) return <div className="flex items-center gap-2 p-6 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Montando a sua lista…</div>;
+  if (!list) return (
+    <StudentPage kicker="Lista mágica" icon={Sparkles} title="Suas questões da semana" description="Montando a sua lista…">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {[0, 1, 2].map((i) => <div key={i} className="h-32 animate-pulse rounded-[20px] bg-white dark:bg-white/5" />)}
+      </div>
+    </StudentPage>
+  );
 
   const total = list.total_questions || 10;
   const done = list.status === 'done';
@@ -70,9 +76,9 @@ export function ListaMagica() {
       kicker={`Lista mágica · ${weekLabel(list.week_start)}`}
       icon={Sparkles}
       title={`Suas ${total} questões da semana`}
-      description="Questões que você nunca fez, dos temas em que você mais precisa treinar agora. Acertar aqui conta no seu nível e esfria o tema."
+      description="Questões inéditas dos temas em que você mais precisa treinar. Acertar esfria o tema."
       actions={cta || undefined}
-      aside={<>
+      aside={list.status === 'empty' ? undefined : <>
         <HeroStat label="Situação" value={statusLabel} hint={done && list.score != null ? `${list.score} de ${list.total} certas` : 'nova toda segunda'} />
         <HeroStat label="Temas" value={list.topics.length} hint={`${total} questões`} />
       </>}
@@ -115,15 +121,16 @@ export function ListaMagica() {
       )}
 
       {list.status === 'empty' ? (
-        <div className="partner-elevated-card flex flex-col items-center rounded-[24px] bg-white px-6 py-12 text-center dark:bg-slate-900">
-          <div className="flex h-16 w-16 items-center justify-center rounded-3xl" style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}>
-            <Wand2 className="h-8 w-8" style={{ color: 'var(--brand-primary)' }} />
-          </div>
-          <p className="font-display mt-4 text-xl font-black text-slate-900 dark:text-white">Ainda sem temas para a sua lista</p>
-          <p className="mt-1 max-w-md text-sm text-slate-600 dark:text-slate-400">
-            Responda algumas questões no banco ou num simulado: a lista usa os seus erros para escolher o que treinar.
-          </p>
-        </div>
+        <EmptyState
+          icon={Wand2}
+          tone="violet"
+          title="Sua lista começa com as suas respostas"
+          description="Toda segunda a lista mágica escolhe 10 questões que você nunca fez, dos temas em que você mais errou. Para isso ela precisa conhecer você."
+          steps={['Responda umas 15 questões no banco ou faça um simulado', 'Na segunda, sua lista aparece aqui pronta', 'Acertou? O tema esfria e sai da lista']}
+          action={<Link href={`/partners/${slug}/student/banco-de-questoes`} className={primaryBtn}>Responder questões agora <ArrowRight className="h-4 w-4" /></Link>}
+          secondary={<Link href={`/partners/${slug}/student/simulado`} className="text-[13px] font-bold text-slate-600 underline-offset-4 hover:underline dark:text-slate-300">ou fazer um simulado</Link>}
+          preview={<MagicListPreview />}
+        />
       ) : (
         <section>
           <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">O que vai cair na sua lista</p>
@@ -155,5 +162,33 @@ export function ListaMagica() {
         </section>
       )}
     </StudentPage>
+  );
+}
+
+/** Prévia decorativa do estado vazio: como a lista fica quando há temas. */
+function MagicListPreview() {
+  const rows = [
+    { s: 'Matemática', d: 'Função do 2º grau', q: 4, hot: true },
+    { s: 'Química', d: 'Estequiometria', q: 3, hot: true },
+    { s: 'Biologia', d: 'Genética', q: 3, hot: false },
+  ];
+  return (
+    <div className="mx-auto max-w-[400px] space-y-2.5">
+      {rows.map((r, i) => (
+        <div key={r.d} className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm dark:border-white/10 dark:bg-slate-800"
+          style={{ transform: `translateX(${i * 14}px)` }}>
+          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${r.hot ? 'bg-red-50 text-red-500 dark:bg-red-500/15' : 'bg-violet-50 text-violet-500 dark:bg-violet-500/15'}`}>
+            {r.hot ? <Flame className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-slate-400">{r.s}</p>
+            <p className="truncate text-[13.5px] font-black text-slate-900 dark:text-white">{r.d}</p>
+          </div>
+          <div className="flex gap-1">
+            {Array.from({ length: r.q }, (_, k) => <span key={k} className="h-2 w-2 rounded-full bg-violet-400" />)}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
