@@ -64,12 +64,14 @@ export function FounderPage({ kicker, title, description, icon: Icon, actions, c
  * Número no cabeçalho do aluno. Só passe quando o valor diz algo ao aluno
  * (nada de "0" ou "—" para quem acabou de chegar).
  */
-export function HeroStat({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
+export function HeroStat({ label, value, hint, className }: { label: string; value: ReactNode; hint?: ReactNode; className?: string }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-white/12 bg-white/[0.07] px-3.5 py-2 backdrop-blur-md">
-      <p className="truncate text-[9.5px] font-bold uppercase tracking-[0.14em] text-white/45">{label}</p>
+    <div className={cn('min-w-0 lg:max-w-[210px]', className)}>
+    <div className="min-w-0 rounded-2xl border border-white/25 bg-white/[0.16] px-3.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_20px_-12px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+      <p className="truncate text-[9.5px] font-bold uppercase tracking-[0.14em] text-white/70">{label}</p>
       <p className="font-display truncate text-[18px] font-black leading-tight text-white">{value}</p>
-      {hint && <p className="max-w-[180px] truncate text-[11px] text-white/55">{hint}</p>}
+      {hint && <p className="max-w-[180px] truncate text-[11px] text-white/75">{hint}</p>}
+    </div>
     </div>
   );
 }

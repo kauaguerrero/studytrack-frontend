@@ -9,9 +9,9 @@
  * não foram acertadas, com atalho para refazer no banco de questões.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, ChevronDown, Flame, RotateCcw, Snowflake, Thermometer } from 'lucide-react';
+import { ArrowRight, ChevronDown, Flame, RotateCcw, SlidersHorizontal, Snowflake, Thermometer } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { useOrg } from '@/contexts/OrgContext';
@@ -37,18 +37,77 @@ interface ErrorTopic {
   questions: ErrorQuestion[];
 }
 
-function heatLabel(heat: number, maxHeat: number): { label: string; className: string } {
-  const r = maxHeat > 0 ? heat / maxHeat : 0;
-  if (r >= 0.66) return { label: 'Quente', className: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' };
-  if (r >= 0.33) return { label: 'Morno', className: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' };
-  return { label: 'Esfriando', className: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300' };
-}
+/**
+ * Escala FIXA de temperatura (não relativa à lista): `heat` do backend ≈ número de
+ * erros recentes (cada erro vale 1 hoje e perde metade a cada 30 dias; acertar
+ * depois do último erro desconta). Com 5 ou mais o termômetro está no máximo.
+ */
+const HEAT_FULL = 5;
+const heatPos = (heat: number) => Math.min(1, Math.max(0.04, heat / HEAT_FULL));
 
 const HEAT_LEVELS = [
-  { label: 'Quente', color: '#ef4444', icon: Flame, hint: 'Revise primeiro' },
-  { label: 'Morno', color: '#f59e0b', icon: Thermometer, hint: 'Vale uma passada' },
-  { label: 'Esfriando', color: '#38bdf8', icon: Snowflake, hint: 'Quase dominado' },
+  { label: 'Quente', short: 'Quente', color: '#ef4444', icon: Flame, hint: 'Revise primeiro', min: 3,
+    badge: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' },
+  { label: 'Morno', short: 'Morno', color: '#f59e0b', icon: Thermometer, hint: 'Vale uma passada', min: 1.25,
+    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' },
+  { label: 'Esfriando', short: 'Frio', color: '#38bdf8', icon: Snowflake, hint: 'Quase dominado', min: 0,
+    badge: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300' },
 ] as const;
+type HeatLevel = (typeof HEAT_LEVELS)[number];
+
+function heatLevel(heat: number): HeatLevel {
+  return HEAT_LEVELS.find((l) => heat >= l.min) ?? HEAT_LEVELS[2];
+}
+
+const ACC_RANGES = [
+  { id: 'low', label: 'Até 40%', test: (a: number) => a < 40 },
+  { id: 'mid', label: '40% a 70%', test: (a: number) => a >= 40 && a < 70 },
+  { id: 'high', label: '70% ou mais', test: (a: number) => a >= 70 },
+] as const;
+const RECENCY = [
+  { id: '7', label: 'Últimos 7 dias', days: 7 },
+  { id: '30', label: 'Últimos 30 dias', days: 30 },
+  { id: '90', label: 'Últimos 3 meses', days: 90 },
+] as const;
+
+interface Filters {
+  temps: string[];
+  subjects: string[];
+  acc: 'all' | (typeof ACC_RANGES)[number]['id'];
+  recency: 'all' | (typeof RECENCY)[number]['id'];
+  onlyRedo: boolean;
+  sort: 'heat' | 'acc' | 'recent' | 'redo';
+}
+const EMPTY_FILTERS: Filters = { temps: [], subjects: [], acc: 'all', recency: 'all', onlyRedo: false, sort: 'heat' };
+
+function FilterGroup({ id, title, open, setOpen, count, children }: {
+  id: string; title: string; open: string[]; setOpen: (v: string[]) => void; count: number; children: React.ReactNode;
+}) {
+  const isOpen = open.includes(id);
+  return (
+    <div className="py-2.5">
+      <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? open.filter((x) => x !== id) : [...open, id])}
+        className="flex w-full items-center justify-between gap-2 text-left">
+        <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+          {title}
+          {count > 0 && <span className="rounded-full px-1.5 text-[10px] font-black text-white" style={{ background: 'var(--brand-primary)' }}>{count}</span>}
+        </span>
+        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+      {isOpen && <div className="mt-2.5 flex flex-wrap gap-1.5">{children}</div>}
+    </div>
+  );
+}
+
+function Chip({ on, onClick, color, children }: { on: boolean; onClick: () => void; color?: string; children: React.ReactNode }) {
+  return (
+    <button type="button" aria-pressed={on} onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold transition ${on ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/[0.07] dark:text-slate-300 dark:hover:bg-white/10'}`}
+      style={on ? { background: color ?? 'var(--brand-primary)' } : undefined}>
+      {children}
+    </button>
+  );
+}
 
 function formatDate(iso: string | null): string {
   if (!iso) return '';
@@ -98,7 +157,35 @@ function MeusErros() {
   }, []);
 
   const bank = `/partners/${org.slug}/student/banco-de-questoes`;
-  const maxHeat = Math.max(0, ...(topics ?? []).map((t) => t.heat));
+  const [f, setF] = useState<Filters>(EMPTY_FILTERS);
+  const [openGroups, setOpenGroups] = useState<string[]>(['temp', 'subject']);
+  const toggle = (k: 'temps' | 'subjects', v: string) =>
+    setF((cur) => ({ ...cur, [k]: cur[k].includes(v) ? cur[k].filter((x) => x !== v) : [...cur[k], v] }));
+  const activeCount = f.temps.length + f.subjects.length + (f.acc !== 'all' ? 1 : 0) + (f.recency !== 'all' ? 1 : 0) + (f.onlyRedo ? 1 : 0);
+
+  // posição de cada tema na lista completa (o "#1" não muda ao filtrar)
+  const rank = useMemo(() => new Map((topics ?? []).map((t, i) => [`${t.subject}||${t.discipline}`, i + 1])), [topics]);
+  const subjects = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of topics ?? []) m.set(t.subject, (m.get(t.subject) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'));
+  }, [topics]);
+  const visible = useMemo(() => {
+    const now = Date.now();
+    const accOf = (t: ErrorTopic) => (t.answers ? (t.correct / t.answers) * 100 : 100);
+    const rng = ACC_RANGES.find((r) => r.id === f.acc);
+    const rec = RECENCY.find((r) => r.id === f.recency);
+    const out = (topics ?? []).filter((t) =>
+      (!f.temps.length || f.temps.includes(heatLevel(t.heat).label))
+      && (!f.subjects.length || f.subjects.includes(t.subject))
+      && (!rng || rng.test(accOf(t)))
+      && (!rec || (t.last_error_at != null && now - new Date(t.last_error_at).getTime() <= rec.days * 864e5))
+      && (!f.onlyRedo || t.questions.length > 0));
+    if (f.sort === 'acc') out.sort((a, b) => accOf(a) - accOf(b));
+    else if (f.sort === 'recent') out.sort((a, b) => (b.last_error_at ?? '').localeCompare(a.last_error_at ?? ''));
+    else if (f.sort === 'redo') out.sort((a, b) => b.questions.length - a.questions.length);
+    return out; // 'heat': ordem do backend (temperatura)
+  }, [topics, f]);
 
   return (
     <StudentPage
@@ -106,8 +193,9 @@ function MeusErros() {
       icon={Flame}
       title="Meus erros"
       aside={topics && topics.length > 0 ? <>
-        <HeroStat label="Temas com erro" value={topics.length} hint="nos últimos meses" />
-        <HeroStat label="Mais quente" value={topics[0].discipline} hint={topics[0].subject} />
+        <HeroStat label="Temas" value={topics.length} hint="com erro" />
+        <HeroStat label="Mais quente" value={topics[0].discipline} hint={topics[0].subject} className="hidden sm:block" />
+        <HeroStat label="Refazer" value={topics.reduce((a, t) => a + t.questions.length, 0)} hint="questões" />
       </> : undefined}
       description="Banco, simulados e provas juntos: errar esquenta o tema, acertar depois esfria."
     >
@@ -138,31 +226,95 @@ function MeusErros() {
 
       {topics && topics.length > 0 && (
         <>
-          {/* Termômetro: quantos temas em cada faixa */}
+          {/* Termômetro: quantos temas em cada faixa (clicar filtra) */}
           <div className="grid grid-cols-3 gap-3">
             {HEAT_LEVELS.map((lv) => {
-              const n = topics.filter((t) => heatLabel(t.heat, maxHeat).label === lv.label).length;
+              const n = topics.filter((t) => heatLevel(t.heat).label === lv.label).length;
               const LvIcon = lv.icon;
+              const on = f.temps.includes(lv.label);
               return (
-                <div key={lv.label} className="partner-elevated-card relative overflow-hidden rounded-[20px] bg-white p-4 dark:bg-slate-900">
+                <button key={lv.label} type="button" aria-pressed={on} onClick={() => toggle('temps', lv.label)}
+                  className={`partner-elevated-card relative overflow-hidden rounded-[20px] bg-white p-4 text-left transition hover:-translate-y-0.5 dark:bg-slate-900 ${on ? 'ring-2' : ''}`}
+                  style={on ? { ['--tw-ring-color' as string]: lv.color } : undefined}>
                   <div className="absolute inset-x-0 top-0 h-1" style={{ background: lv.color }} />
                   <div className="flex items-center gap-2">
-                    <LvIcon className="h-4 w-4" style={{ color: lv.color }} />
-                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">{lv.label}</p>
+                    <LvIcon className="h-4 w-4 shrink-0" style={{ color: lv.color }} />
+                    <p className="truncate text-[10.5px] font-bold uppercase tracking-[0.06em] text-slate-500 sm:text-[11px] sm:tracking-[0.12em] dark:text-slate-400"><span className="sm:hidden">{lv.short}</span><span className="hidden sm:inline">{lv.label}</span></p>
                   </div>
                   <p className="font-display mt-1 text-[28px] font-black leading-none text-slate-900 dark:text-white">{n}</p>
                   <p className="mt-1 hidden text-[11.5px] text-slate-500 sm:block dark:text-slate-400">{lv.hint}</p>
-                </div>
+                </button>
               );
             })}
           </div>
 
+          {/* Filtros: temperatura e matéria abertos por padrão; os outros recolhidos */}
+          <section className="partner-elevated-card rounded-[20px] bg-white p-4 sm:p-5 dark:bg-slate-900" aria-label="Filtros">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="flex items-center gap-2 text-[13px] font-black text-slate-900 dark:text-white">
+                <SlidersHorizontal className="h-4 w-4 text-slate-400" /> Filtros
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">
+                  {visible.length} de {topics.length} temas
+                </span>
+                {activeCount > 0 && (
+                  <button type="button" onClick={() => setF(EMPTY_FILTERS)} className="text-[12px] font-bold text-slate-500 underline-offset-4 hover:underline dark:text-slate-300">Limpar</button>
+                )}
+              </p>
+              <label className="flex items-center gap-2 text-[12px] font-semibold text-slate-500 dark:text-slate-400">
+                Ordenar
+                <select aria-label="Ordenar" value={f.sort} onChange={(e) => setF({ ...f, sort: e.target.value as Filters['sort'] })}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-700 outline-none dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                  <option value="heat">Mais quente</option>
+                  <option value="acc">Menor acerto</option>
+                  <option value="recent">Erro mais recente</option>
+                  <option value="redo">Mais para refazer</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-3 divide-y divide-slate-100 dark:divide-white/5">
+              <FilterGroup id="temp" title="Temperatura" open={openGroups} setOpen={setOpenGroups} count={f.temps.length}>
+                {HEAT_LEVELS.map((lv) => (
+                  <Chip key={lv.label} on={f.temps.includes(lv.label)} onClick={() => toggle('temps', lv.label)} color={lv.color}>
+                    <lv.icon className="h-3.5 w-3.5" /> {lv.label}
+                  </Chip>
+                ))}
+              </FilterGroup>
+              <FilterGroup id="subject" title="Matéria" open={openGroups} setOpen={setOpenGroups} count={f.subjects.length}>
+                {subjects.map(([s, n]) => (
+                  <Chip key={s} on={f.subjects.includes(s)} onClick={() => toggle('subjects', s)}>
+                    {s} <span className="opacity-60">{n}</span>
+                  </Chip>
+                ))}
+              </FilterGroup>
+              <FilterGroup id="acc" title="Acerto" open={openGroups} setOpen={setOpenGroups} count={f.acc === 'all' ? 0 : 1}>
+                {ACC_RANGES.map((r) => (
+                  <Chip key={r.id} on={f.acc === r.id} onClick={() => setF({ ...f, acc: f.acc === r.id ? 'all' : r.id })}>{r.label}</Chip>
+                ))}
+              </FilterGroup>
+              <FilterGroup id="recency" title="Último erro" open={openGroups} setOpen={setOpenGroups} count={f.recency === 'all' ? 0 : 1}>
+                {RECENCY.map((r) => (
+                  <Chip key={r.id} on={f.recency === r.id} onClick={() => setF({ ...f, recency: f.recency === r.id ? 'all' : r.id })}>{r.label}</Chip>
+                ))}
+              </FilterGroup>
+              <FilterGroup id="redo" title="Questões para refazer" open={openGroups} setOpen={setOpenGroups} count={f.onlyRedo ? 1 : 0}>
+                <Chip on={f.onlyRedo} onClick={() => setF({ ...f, onlyRedo: !f.onlyRedo })}>Só temas com questões para refazer</Chip>
+              </FilterGroup>
+            </div>
+          </section>
+
+          {visible.length === 0 ? (
+            <div className="partner-elevated-card rounded-[20px] bg-white px-6 py-10 text-center dark:bg-slate-900">
+              <p className="font-display text-[17px] font-black text-slate-900 dark:text-white">Nenhum tema com esses filtros</p>
+              <button type="button" onClick={() => setF(EMPTY_FILTERS)} className={`${primaryBtn} mt-4`}>Limpar filtros</button>
+            </div>
+          ) : (
           <ul className="grid gap-4 md:grid-cols-2">
-            {topics.map((t, idx) => {
+            {visible.map((t) => {
               const key = `${t.subject}||${t.discipline}`;
-              const badge = heatLabel(t.heat, maxHeat);
-              const lv = HEAT_LEVELS.find((l) => l.label === badge.label) ?? HEAT_LEVELS[2];
-              const ratio = maxHeat > 0 ? Math.max(0.06, t.heat / maxHeat) : 0.06;
+              const lv = heatLevel(t.heat);
+              const pos = heatPos(t.heat);
+              const recent = Math.max(1, Math.round(t.heat));
               const acc = t.answers ? Math.round((t.correct / t.answers) * 100) : null;
               const isOpen = open === key;
               const practice = `${bank}?subject=${encodeURIComponent(t.subject)}&topic=${encodeURIComponent(t.discipline)}`;
@@ -173,25 +325,37 @@ function MeusErros() {
                     <div className="flex items-start gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">#{idx + 1} · {t.subject}</span>
-                          <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ${badge.className}`}>{badge.label}</span>
+                          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">#{rank.get(key)} · {t.subject}</span>
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold ${lv.badge}`}><lv.icon className="h-3 w-3" />{lv.label}</span>
                         </div>
                         <p className="font-display mt-1 text-[17px] font-black leading-snug text-slate-900 dark:text-white">{t.discipline}</p>
                       </div>
                       {acc != null && (
                         <div className="shrink-0 text-right">
-                          <p className="font-display text-[22px] font-black leading-none text-slate-900 dark:text-white">{acc}%</p>
+                          <p className="font-display text-[22px] font-black leading-none" style={{ color: acc < 40 ? '#ef4444' : acc < 70 ? '#f59e0b' : '#10b981' }}>{acc}%</p>
                           <p className="text-[10.5px] font-semibold text-slate-400">de acerto</p>
                         </div>
                       )}
                     </div>
 
-                    {/* barra de temperatura (gradiente frio → quente, cortado no nível do tema) */}
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10" role="img" aria-label={`Temperatura: ${badge.label}`}>
-                      <div className="h-full rounded-full" style={{ width: `${ratio * 100}%`, background: 'linear-gradient(90deg, #38bdf8, #f59e0b, #ef4444)', backgroundSize: `${100 / ratio}% 100%` }} />
+                    {/* Termômetro do tema: escala fixa frio → quente; o marcador mostra onde o tema está */}
+                    <div className="mt-4" title="A temperatura sobe a cada erro recente e baixa quando você acerta o tema de novo. Erros antigos pesam menos.">
+                      <div className="flex items-center justify-between text-[11px] font-semibold">
+                        <span className="text-slate-500 dark:text-slate-400">Temperatura</span>
+                        <span style={{ color: lv.color }}>≈ {recent} {recent === 1 ? 'erro recente pesando' : 'erros recentes pesando'}</span>
+                      </div>
+                      <div className="relative mt-1.5 h-2 rounded-full" role="img" aria-label={`Temperatura: ${lv.label}`}
+                        style={{ background: 'linear-gradient(90deg, #38bdf8 0%, #38bdf8 20%, #f59e0b 50%, #ef4444 80%, #ef4444 100%)', opacity: 0.9 }}>
+                        <div className="absolute inset-y-0 right-0 rounded-r-full bg-slate-100/85 dark:bg-slate-800/85" style={{ left: `${pos * 100}%` }} />
+                        <span className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white shadow-md dark:border-slate-900"
+                          style={{ left: `${pos * 100}%`, background: lv.color }} />
+                      </div>
+                      <div className="mt-1 flex justify-between text-[10px] font-bold uppercase tracking-[0.08em] text-slate-400">
+                        <span>Frio</span><span>Morno</span><span>Quente</span>
+                      </div>
                     </div>
                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      {t.correct}/{t.answers} acertos
+                      {t.correct} de {t.answers} certas
                       {t.last_error_at ? ` · último erro em ${formatDate(t.last_error_at)}` : ''}
                     </p>
 
@@ -229,6 +393,7 @@ function MeusErros() {
               );
             })}
           </ul>
+          )}
         </>
       )}
     </StudentPage>
