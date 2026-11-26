@@ -338,7 +338,7 @@ function MeusErros() {
               <button type="button" onClick={() => setF(EMPTY_FILTERS)} className={`${primaryBtn} mt-4`}>Limpar filtros</button>
             </div>
           ) : (
-          <ul className="grid gap-4 md:grid-cols-2">
+          <ul className="grid items-start gap-4 md:grid-cols-2">
             {visible.map((t) => {
               const key = `${t.subject}||${t.discipline}`;
               const lv = heatLevel(t.heat);
@@ -348,7 +348,7 @@ function MeusErros() {
               const isOpen = open === key;
               const practice = `${bank}?subject=${encodeURIComponent(t.subject)}&topic=${encodeURIComponent(t.discipline)}`;
               return (
-                <li key={key} className={`partner-elevated-card relative overflow-hidden rounded-[20px] bg-white dark:bg-slate-900 ${isOpen ? 'md:col-span-2' : ''}`}>
+                <li key={key} className="partner-elevated-card relative overflow-hidden rounded-[20px] bg-white dark:bg-slate-900">
                   <div className="absolute inset-y-0 left-0 w-1.5" style={{ background: lv.color }} />
                   <div className="p-4 pl-5 sm:p-5 sm:pl-6">
                     <div className="flex items-start gap-3">
@@ -402,16 +402,19 @@ function MeusErros() {
                     </div>
 
                     {isOpen && (
-                      <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-                        {t.questions.map((q) => (
+                      <ul className="mt-4 max-h-[340px] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
+                        {t.questions.map((q, qi) => (
                           <li key={q.id}>
                             <Link href={`${bank}?question_id=${q.id}`}
-                              className="flex h-full items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 text-sm transition hover:border-slate-200 hover:bg-white dark:border-white/5 dark:bg-white/5 dark:hover:bg-white/10">
-                              <span className="min-w-0 flex-1 text-slate-700 dark:text-slate-300">
-                                {q.year ? <span className="mr-1 font-bold text-slate-900 dark:text-white">{q.year} ·</span> : null}
-                                <span className="line-clamp-3">{q.snippet || 'Questão'}</span>
+                              className="group/q flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-slate-200 hover:bg-white dark:border-white/5 dark:bg-white/5 dark:hover:bg-white/10">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-black text-slate-500 shadow-sm dark:bg-white/10 dark:text-slate-300">{qi + 1}</span>
+                              <span className="min-w-0 flex-1">
+                                <span className="line-clamp-2 text-[13px] leading-snug text-slate-700 dark:text-slate-300">{q.snippet || 'Questão'}</span>
+                                {q.year && <span className="mt-1 inline-block rounded-full bg-slate-200/70 px-2 py-0.5 text-[10.5px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">{q.year}</span>}
                               </span>
-                              <ArrowRight size={15} className="mt-0.5 shrink-0 text-slate-400" />
+                              <span className="mt-0.5 flex shrink-0 items-center gap-1 text-[11.5px] font-bold text-slate-400 transition group-hover/q:text-slate-700 dark:group-hover/q:text-white">
+                                Refazer <ArrowRight size={14} />
+                              </span>
                             </Link>
                           </li>
                         ))}
