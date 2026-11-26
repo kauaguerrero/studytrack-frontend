@@ -1031,13 +1031,16 @@ export function DashboardClient({
                   de baixo mais escura simula profundidade 3D e "afunda" no clique/toque. */}
               {/* Largura limitada: o nome do conteúdo pode ser enorme e, com shrink-0, empurrava
                   a coluna para fora do hero quando a sidebar expandia. */}
-              <div className="flex min-w-0 flex-col items-center gap-2 lg:w-[300px] lg:shrink-0 lg:gap-3">
+              <div className="flex min-w-0 flex-col items-center gap-2 lg:max-w-[460px] lg:shrink-0 lg:gap-3">
                 <p
                   className="line-clamp-2 w-full max-w-[300px] text-center text-[11.5px] font-semibold leading-snug text-white/55"
                   title={resumeSubtitle}
                 >
                   {resumeSubtitle}
                 </p>
+                <div className="group/cta flex items-center justify-center gap-2.5">
+                {/* Timer em um toque, à esquerda da retomada (sem ir para outra página). */}
+                {org.permissions?.timer_enabled === true && <QuickTimerButton slug={slug} />}
                 <Link
                   href={cronogramaDoneToday && !cronogramaNext ? `/partners/${slug}/student/cronograma` : resumeHref}
                   onClick={(e) => {
@@ -1055,7 +1058,7 @@ export function DashboardClient({
                   />
                   {/* face do botão — sobe em repouso, "afunda" ao pressionar */}
                   <span
-                    className="relative flex items-center justify-center gap-2 rounded-2xl px-7 py-3 text-[14.5px] font-black tracking-tight transition-transform duration-100 ease-out group-hover:-translate-y-0.5 group-active:translate-y-[4px] lg:py-3.5"
+                    className="relative flex items-center justify-center gap-2 whitespace-nowrap rounded-2xl px-6 py-3 text-[14.5px] sm:px-7 font-black tracking-tight transition-transform duration-100 ease-out group-hover:-translate-y-0.5 group-active:translate-y-[4px] lg:py-3.5"
                     style={{
                       background: 'var(--brand-accent)',
                       color: '#ffffff',
@@ -1063,11 +1066,12 @@ export function DashboardClient({
                     }}
                   >
                     <Play className="h-4 w-4" fill="currentColor" strokeWidth={0} />
-                    {cronogramaNext || cronogramaDoneToday ? 'Continuar cronograma' : 'Continue de onde parou'}
+                    {/* com o timer rodando (pílula ao lado), no celular o rótulo encurta para caber na mesma linha */}
+                    <span className="max-sm:group-has-[[role=status]]/cta:hidden">{cronogramaNext || cronogramaDoneToday ? 'Continuar cronograma' : 'Continue de onde parou'}</span>
+                    <span className="hidden max-sm:group-has-[[role=status]]/cta:inline">Continuar</span>
                   </span>
                 </Link>
-                {/* Timer em um toque, logo abaixo da retomada (sem ir para outra página). */}
-                {org.permissions?.timer_enabled === true && <QuickTimerButton slug={slug} />}
+                </div>
               </div>
               </div>
             </BrandHero>
