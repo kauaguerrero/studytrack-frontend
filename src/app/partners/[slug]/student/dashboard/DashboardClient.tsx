@@ -312,6 +312,8 @@ export function DashboardClient({
   const [cronogramaDoneToday, setCronogramaDoneToday] = useState(false);
   const [cronogramaTarget, setCronogramaTarget] = useState<StartTarget | null>(null);
   const cronogramaEnabled = org.permissions?.cronograma_enabled === true;
+  // Módulo "Títulos e check-in mensal" (admin). Desligado: sem pop-up de check-in.
+  const titulosEnabled = org.permissions?.titulos_enabled !== false;
   const [feedInfoOpen, setFeedInfoOpen] = useState(false);
   const [activityModalOpen, setActivityModalOpen] = useState(false);
   const [achievementModalItem, setAchievementModalItem] = useState<FeedItem | null>(null);
@@ -711,6 +713,7 @@ export function DashboardClient({
 
     switch (popupState.type) {
       case 'onboarding':
+        if (!titulosEnabled) { dismissPopup(); break; }
         enqueuePopup({
           kind: 'onboarding',
           routeScope: 'dashboard',
@@ -794,11 +797,12 @@ export function DashboardClient({
     summary?.month_label,
     summary?.shield_count,
     summary?.rank_streak_popups_enabled,
+    titulosEnabled,
   ]);
 
   useEffect(() => {
     const forceCheckIn = searchParams.get('forceCheckIn') === '1';
-    if (!forceCheckIn) return;
+    if (!forceCheckIn || !titulosEnabled) return;
 
     enqueuePopup({
       kind: 'onboarding',
@@ -807,7 +811,7 @@ export function DashboardClient({
       organizationName: orgName,
       dedupeKey: 'dashboard-onboarding',
     });
-  }, [enqueuePopup, firstName, orgName, searchParams]);
+  }, [enqueuePopup, firstName, orgName, searchParams, titulosEnabled]);
 
   // Caminho sem escudo: aplica decay e enfileira StreakPointsLostPopup
   const handleStreakBrokenDismiss = useCallback(async (): Promise<void> => {
