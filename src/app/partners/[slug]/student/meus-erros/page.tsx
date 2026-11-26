@@ -188,6 +188,9 @@ function MeusErros() {
   }, []);
 
   const bank = `/partners/${org.slug}/student/banco-de-questoes`;
+  // Refazer em sequência no banco; o banco mostra "voltar para Meus erros".
+  const redoHref = (ids: string[], start = 0) =>
+    `${bank}?question_ids=${ids.join(',')}${start ? `&start=${start}` : ''}&from=meus-erros`;
   const [f, setF] = useState<Filters>(EMPTY_FILTERS);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const toggle = (k: 'temps' | 'subjects', v: string) =>
@@ -217,6 +220,8 @@ function MeusErros() {
     else if (f.sort === 'redo') out.sort((a, b) => b.questions.length - a.questions.length);
     return out; // 'heat': ordem do backend (temperatura)
   }, [topics, f]);
+  // Todas as questões para refazer dos temas visíveis, do tema mais quente para o mais frio.
+  const allRedoIds = useMemo(() => [...new Set(visible.flatMap((t) => t.questions.map((q) => q.id)))], [visible]);
 
   return (
     <StudentPage
@@ -322,6 +327,14 @@ function MeusErros() {
               ))}
             </FilterMenu>
 
+            {allRedoIds.length > 0 && (
+              <Link href={redoHref(allRedoIds)}
+                className="inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-[11.5px] font-bold text-white shadow-sm transition hover:brightness-110 sm:ml-auto sm:h-8 sm:text-[12.5px]"
+                style={{ background: 'var(--brand-primary)' }}>
+                <RotateCcw className="h-3.5 w-3.5" /> Refazer todas · {allRedoIds.length}
+              </Link>
+            )}
+
             {activeCount > 0 && (
               <span className="flex items-center gap-2 pl-1 text-[12px] text-slate-500 dark:text-slate-400">
                 {visible.length} de {topics.length}
@@ -346,7 +359,8 @@ function MeusErros() {
               const recent = Math.max(1, Math.round(t.heat));
               const acc = t.answers ? Math.round((t.correct / t.answers) * 100) : null;
               const isOpen = open === key;
-              const practice = `${bank}?subject=${encodeURIComponent(t.subject)}&topic=${encodeURIComponent(t.discipline)}`;
+              const practice = `${bank}?subject=${encodeURIComponent(t.subject)}&topic=${encodeURIComponent(t.discipline)}&from=meus-erros`;
+              const ids = t.questions.map((q) => q.id);
               return (
                 <li key={key} className="partner-elevated-card relative overflow-hidden rounded-[20px] bg-white dark:bg-slate-900">
                   <div className="absolute inset-y-0 left-0 w-1.5" style={{ background: lv.color }} />
@@ -389,13 +403,23 @@ function MeusErros() {
                     </p>
 
                     <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <Link href={practice} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white shadow-sm transition-transform hover:scale-[1.02]" style={{ background: 'var(--brand-primary)' }}>
-                        <RotateCcw size={14} /> Praticar
+                      {ids.length > 0 ? (
+                        <Link href={redoHref(ids)} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white shadow-sm transition-transform hover:scale-[1.02]" style={{ background: 'var(--brand-primary)' }}>
+                          <RotateCcw size={14} /> Refazer {ids.length === 1 ? 'a questão' : `as ${ids.length}`}
+                        </Link>
+                      ) : null}
+                      <Link href={practice}
+                        className={ids.length > 0
+                          ? 'inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-4 py-2 text-[13px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5'
+                          : 'inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white shadow-sm transition-transform hover:scale-[1.02]'}
+                        style={ids.length > 0 ? undefined : { background: 'var(--brand-primary)' }}>
+                        {ids.length > 0 ? 'Praticar o tema' : <><RotateCcw size={14} /> Praticar o tema</>}
                       </Link>
-                      {t.questions.length > 0 && (
+                      {ids.length > 0 && (
                         <button type="button" onClick={() => setOpen(isOpen ? null : key)} aria-expanded={isOpen}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-4 py-2 text-[13px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5">
-                          {t.questions.length} para refazer
+                          aria-label={isOpen ? 'Esconder questões' : 'Ver questões'}
+                          className="inline-flex items-center gap-1 rounded-full px-3 py-2 text-[13px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white">
+                          {isOpen ? 'Esconder' : 'Ver lista'}
                           <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                         </button>
                       )}
@@ -405,7 +429,7 @@ function MeusErros() {
                       <ul className="mt-4 max-h-[340px] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
                         {t.questions.map((q, qi) => (
                           <li key={q.id}>
-                            <Link href={`${bank}?question_id=${q.id}`}
+                            <Link href={redoHref(ids, qi)}
                               className="group/q flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-slate-200 hover:bg-white dark:border-white/5 dark:bg-white/5 dark:hover:bg-white/10">
                               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-black text-slate-500 shadow-sm dark:bg-white/10 dark:text-slate-300">{qi + 1}</span>
                               <span className="min-w-0 flex-1">

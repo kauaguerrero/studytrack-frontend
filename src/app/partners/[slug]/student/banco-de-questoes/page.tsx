@@ -15,7 +15,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import {
   ArrowLeft, ArrowRight, Lock,
   CheckCircle2, Circle, Loader2, Calendar,
-  BarChart, Flag, BookOpen, Landmark, Layers, ChevronDown, Trash2, Briefcase, GraduationCap,
+  BarChart, Flag, Flame, BookOpen, Landmark, Layers, ChevronDown, Trash2, Briefcase, GraduationCap,
 } from 'lucide-react';
 import { QuestionCard } from '@/components/questions/QuestionCard';
 import { ReportDialog } from '@/components/questions/ReportDialog';
@@ -159,7 +159,19 @@ export default function BancoDeQuestoes() {
 
   // Deep-link de report: quando ?question_id=UUID vem da página de reports do aluno,
   // exibe apenas essa questão específica (ignora filtros e paginação).
-  const questionIdParam = searchParams.get('question_id');
+  const questionIdSingle = searchParams.get('question_id');
+  // ?question_ids=a,b,c vem de "Meus erros": refazer as questões erradas em
+  // sequência (?start=N abre já na N-ésima). ?from=meus-erros troca os
+  // "voltar" para levar de volta à página de erros.
+  const questionIdsParam = searchParams.get('question_ids');
+  const deepKey = useMemo(
+    () => (questionIdSingle ? [questionIdSingle] : (questionIdsParam ?? '').split(',').map((x) => x.trim()).filter(Boolean)).join(','),
+    [questionIdSingle, questionIdsParam],
+  );
+  const isDeepLink = deepKey.length > 0;
+  const fromErrors = searchParams.get('from') === 'meus-erros';
+  const errorsHref = `/partners/${org.slug}/student/meus-erros`;
+  const startIdx = Math.max(0, Number(searchParams.get('start') ?? 0) || 0);
 
   // Todos os filtros são de múltipla escolha; lista vazia = sem filtro.
   const [filterBanks, setFilterBanks] = useState<string[]>([]);
@@ -187,7 +199,7 @@ export default function BancoDeQuestoes() {
   const [allQuestionMeta, setAllQuestionMeta] = useState<QuestionMetaRow[]>([]);
 
   // ── State: UI Controls ──────────────────────────────────────────────────────
-  const [isMenuOpen, setIsMenuOpen] = useState(!questionIdParam && !planItem);
+  const [isMenuOpen, setIsMenuOpen] = useState(!isDeepLink && !planItem && !fromErrors);
 
   // ── State: Loading & User ───────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
@@ -363,9 +375,10 @@ export default function BancoDeQuestoes() {
 
   const topicNames = useMemo(() => availableTopics.map((t) => t.name), [availableTopics]);
 
-  // ── Single-question mode: busca questão específica via deep-link de report ────
+  // ── Modo lista fixa: uma questão (deep-link de report) ou várias em sequência
+  // (refazer erros). Busca todas em paralelo e mantém a ordem pedida.
   useEffect(() => {
-    if (!questionIdParam || !userId) return;
+    if (!isDeepLink || !userId) return;
     setLoading(true);
     setHasMore(false);
     void (async () => {
@@ -373,13 +386,14 @@ export default function BancoDeQuestoes() {
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) return;
-        const res = await fetch(`/api/proxy/questions/${questionIdParam}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-          cache: 'no-store',
-        });
-        if (!res.ok) return;
-        const q = await res.json() as Record<string, unknown>;
-        const transformed = {
+        const results = await Promise.all(deepKey.split(',').map(async (id) => {
+          const res = await fetch(`/api/proxy/questions/${encodeURIComponent(id)}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            cache: 'no-store',
+          });
+          return res.ok ? (await res.json() as Record<string, unknown>) : null;
+        }));
+        const list = results.filter((q): q is Record<string, unknown> => !!q).map((q) => ({
           id: String(q.id ?? ''),
           external_id: String(q.external_id ?? ''),
           year: Number(q.exam_year ?? 0),
@@ -393,21 +407,21 @@ export default function BancoDeQuestoes() {
           explanation: (q.ai_reasoning as Record<string, string> | null)?.thought ?? '',
           images: q.images,
           metadata: q.metadata,
-        };
-        setQuestions([transformed as never]);
-        setCurrentIdx(0);
+        }));
+        setQuestions(list as never[]);
+        setCurrentIdx(Math.min(startIdx, Math.max(0, list.length - 1)));
       } catch (err) {
         void reportError('QuestionBankDeepLinkError', String(err));
       } finally {
         setLoading(false);
       }
     })();
-  }, [questionIdParam, userId]);
+  }, [deepKey, isDeepLink, userId, startIdx]);
 
   // ── Filter reset ─────────────────────────────────────────────────────────────
   useEffect(() => {
     // Não rodar o fetch normal quando estamos exibindo uma questão específica de report
-    if (questionIdParam) return;
+    if (isDeepLink) return;
     if (userId) {
       setQuestions([]);
       setPage(1);
@@ -523,11 +537,11 @@ export default function BancoDeQuestoes() {
 
   // ── Infinite scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
-    if (questionIdParam) return; // sem paginação no modo questão única
+    if (isDeepLink) return; // sem paginação no modo questão única
     if (!loadingMore && hasMore && questions.length > 0 && currentIdx >= questions.length - 3) {
       if (!isLoadingRef.current) fetchQuestions(page + 1, true);
     }
-  }, [currentIdx, questions.length, hasMore, loadingMore, page, fetchQuestions, questionIdParam]);
+  }, [currentIdx, questions.length, hasMore, loadingMore, page, fetchQuestions, isDeepLink]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleQuotaLimitReached = (_reasonCode: string) => {
@@ -605,8 +619,8 @@ export default function BancoDeQuestoes() {
     // A resposta já foi confirmada pela API antes de chegar aqui. Recarregar
     // garante que "A fazer", a contagem e as opções cruzadas reflitam o banco,
     // mas sem trocar a UI por um estado de carregamento.
-    if (!questionIdParam) void fetchQuestions(1, false, 0, undefined, true);
-  }, [activeTab, fetchQuestions, questionIdParam]);
+    if (!isDeepLink) void fetchQuestions(1, false, 0, undefined, true);
+  }, [activeTab, fetchQuestions, isDeepLink]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────
   const currentQ = questions[currentIdx];
@@ -730,7 +744,7 @@ export default function BancoDeQuestoes() {
 
         </section>
       ) : (
-        <header className="mx-auto flex max-w-4xl items-center justify-between gap-3 border-b border-slate-200 px-4 py-5 dark:border-slate-800"><div className="flex items-center gap-3"><button onClick={handleOpenFilters} aria-label="Voltar aos filtros" className="rounded-xl p-2 text-slate-700 dark:text-slate-200"><ArrowLeft size={20} /></button><h1 className="text-xl font-bold text-slate-900 dark:text-white">Banco de Questões</h1></div><button onClick={handleOpenFilters} className="rounded-xl border border-[var(--brand-primary)] px-4 py-2 text-sm font-bold text-[var(--brand-primary)] dark:border-[color-mix(in_srgb,var(--brand-primary)_45%,white)] dark:text-[color-mix(in_srgb,var(--brand-primary)_45%,white)]">Filtros</button></header>
+        <header className="mx-auto flex max-w-4xl items-center justify-between gap-3 border-b border-slate-200 px-4 py-5 dark:border-slate-800"><div className="flex items-center gap-3">{fromErrors ? <a href={errorsHref} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"><ArrowLeft size={17} /> Meus erros</a> : <button onClick={handleOpenFilters} aria-label="Voltar aos filtros" className="rounded-xl p-2 text-slate-700 dark:text-slate-200"><ArrowLeft size={20} /></button>}<h1 className="text-xl font-bold text-slate-900 dark:text-white">{fromErrors && isDeepLink ? 'Refazer erros' : 'Banco de Questões'}</h1></div>{!(fromErrors && isDeepLink) && <button onClick={handleOpenFilters} className="rounded-xl border border-[var(--brand-primary)] px-4 py-2 text-sm font-bold text-[var(--brand-primary)] dark:border-[color-mix(in_srgb,var(--brand-primary)_45%,white)] dark:text-[color-mix(in_srgb,var(--brand-primary)_45%,white)]">Filtros</button>}</header>
       )}
 
       {planItem && !isMenuOpen && (
@@ -772,7 +786,13 @@ export default function BancoDeQuestoes() {
                   {`Questão ${currentIdx + 1} de ${totalQuestionsFound || questions.length}`}
                 </span>
 
-                {questionIdParam && (
+                {fromErrors && isDeepLink && (
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2.5 py-1 rounded-lg border border-red-100 dark:border-red-900">
+                    <Flame size={11} /> Refazendo seus erros
+                  </span>
+                )}
+
+                {isDeepLink && !fromErrors && (
                   <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 rounded-lg border border-amber-100 dark:border-amber-800">
                     <Flag size={10} /> Do seu report
                   </span>
@@ -786,8 +806,8 @@ export default function BancoDeQuestoes() {
               </div>
 
               {/* Total ou voltar ao banco quando em modo questão única */}
-              {questionIdParam ? (
-                <a
+              {isDeepLink ? (
+                fromErrors ? null : <a
                   href={`/partners/${org.slug}/student/banco-de-questoes`}
                   className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 bg-white dark:bg-slate-900 px-3 py-1 rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm transition-colors"
                 >
@@ -943,7 +963,14 @@ export default function BancoDeQuestoes() {
 
                 <div className="h-7 w-px bg-slate-100 dark:bg-slate-800 shrink-0" />
 
-                {/* Next */}
+                {/* Next — no fim da sequência de erros, volta para Meus erros */}
+                {fromErrors && isDeepLink && isNextDisabled ? (
+                  <a href={errorsHref}
+                    className="flex-[2] font-bold py-3.5 rounded-xl shadow-sm transition-all flex justify-center items-center gap-2 active:scale-[0.97] hover:brightness-105"
+                    style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
+                    <CheckCircle2 size={17} /> <span className="text-sm">Concluir e voltar</span>
+                  </a>
+                ) : (
                 <button
                   onClick={handleNext}
                   disabled={
@@ -969,6 +996,7 @@ export default function BancoDeQuestoes() {
                     </>
                   )}
                 </button>
+                )}
 
               </div>
             </div>
