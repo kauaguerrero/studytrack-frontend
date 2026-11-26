@@ -8,7 +8,7 @@ import { addDays, formatDayMonth, parseISODate, type BlockKind, type ScheduleRul
 
 const DAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 const DAY_SHORT = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
-const OPTIONS = [0, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360];
+const OPTIONS = [0, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 420, 480, 540, 600, 660, 720, 780, 840];
 const BLOCK_OPTIONS = [30, 45, 60, 90, 120, 180, 240, 270, 300];
 const BLOCK_LABEL: Record<BlockKind, string> = { simulado: 'Simulado', redacao: 'Redação' };
 const BLOCK_DEFAULT: Record<BlockKind, number> = { simulado: 270, redacao: 60 };

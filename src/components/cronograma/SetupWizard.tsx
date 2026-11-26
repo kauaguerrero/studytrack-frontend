@@ -9,7 +9,7 @@ import { ElevatedCard } from '@/components/partners/founder-ui';
 import { AREA_STYLE, WEEKDAY_LONG, cronogramaFetch, formatDayMonth, parseISODate, type Area, type ClassSummary, type LevelingSummary } from '@/lib/cronograma';
 
 const AREAS: Exclude<Area, 'geral'>[] = ['matematica', 'natureza', 'humanas', 'linguagens'];
-const MAX_DAY_MINUTES = 360;
+const MAX_DAY_MINUTES = 840; // 14h por dia (mesmo teto do backend)
 const CONFIDENCE = ['Muito insegura(o)', 'Insegura(o)', 'Ok', 'Segura(o)', 'Muito segura(o)'];
 
 export function SetupWizard({
@@ -31,7 +31,7 @@ export function SetupWizard({
   const [examDate, setExamDate] = useState(defaults.exam_date);
   const [capacity, setCapacity] = useState<number[]>(() => {
     const days = Math.max(1, Math.min(7, defaults.days_per_week || 5));
-    // Teto = máximo do slider (6h); senão o slider trava no fim e o total mostra outra coisa.
+    // Teto = máximo do slider (14h); senão o slider trava no fim e o total mostra outra coisa.
     const minutes = Math.max(30, Math.min(MAX_DAY_MINUTES, (defaults.hours_per_day || 2) * 60));
     return Array.from({ length: 7 }, (_, wd) => (wd < days ? minutes : 0));
   });

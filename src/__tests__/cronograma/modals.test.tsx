@@ -53,11 +53,11 @@ describe('SetupWizard', () => {
     expect(slider('Sábado').value).toBe('0');
     expect(screen.getByText('10h por semana')).toBeInTheDocument();
   });
-  it('CT-S03 perfil com horas acima do slider é limitado ao máximo do slider (6h)', () => {
-    render(<SetupWizard defaults={{ ...defaults, hours_per_day: 12 }} onCreated={vi.fn()} />);
+  it('CT-S03 perfil com horas acima do slider é limitado ao máximo do slider (14h)', () => {
+    render(<SetupWizard defaults={{ ...defaults, hours_per_day: 16 }} onCreated={vi.fn()} />);
     next();
-    expect(slider('Segunda').value).toBe('360');
-    expect(screen.getByText('30h por semana')).toBeInTheDocument();
+    expect(slider('Segunda').value).toBe('840');
+    expect(screen.getByText('70h por semana')).toBeInTheDocument();
   });
   it('CT-S04 rótulo de horas: folga, 1h, 1h30', () => {
     render(<SetupWizard defaults={defaults} onCreated={vi.fn()} />);
