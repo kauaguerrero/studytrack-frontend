@@ -9,9 +9,9 @@
  * não foram acertadas, com atalho para refazer no banco de questões.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, ChevronDown, Flame, RotateCcw, SlidersHorizontal, Snowflake, Thermometer } from 'lucide-react';
+import { ArrowRight, ArrowUpDown, Check, ChevronDown, Flame, RotateCcw, Snowflake, Thermometer, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { useOrg } from '@/contexts/OrgContext';
@@ -80,30 +80,61 @@ interface Filters {
 }
 const EMPTY_FILTERS: Filters = { temps: [], subjects: [], acc: 'all', recency: 'all', onlyRedo: false, sort: 'heat' };
 
-function FilterGroup({ id, title, open, setOpen, count, children }: {
-  id: string; title: string; open: string[]; setOpen: (v: string[]) => void; count: number; children: React.ReactNode;
+const SORTS = [
+  { id: 'heat', label: 'Mais quente' },
+  { id: 'acc', label: 'Menor acerto' },
+  { id: 'recent', label: 'Erro mais recente' },
+  { id: 'redo', label: 'Mais para refazer' },
+] as const;
+
+const pillCls =
+  'inline-flex h-7 items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 text-[11.5px] font-bold sm:h-8 sm:gap-1.5 sm:px-3 sm:text-[12.5px] text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white';
+const pillOn = 'border-transparent text-white hover:text-white dark:text-white';
+
+/** Pílula que abre um menu pequeno embaixo dela. Só um menu aberto por vez. */
+function FilterMenu({ id, label, value, open, setOpen, icon: Icon = ChevronDown, neutral = false, children }: {
+  id: string; label: string; value: string | null; open: string | null; setOpen: (v: string | null) => void;
+  icon?: React.ElementType; neutral?: boolean; children: React.ReactNode;
 }) {
-  const isOpen = open.includes(id);
+  const ref = useRef<HTMLDivElement>(null);
+  const isOpen = open === id;
+  useEffect(() => {
+    if (!isOpen) return;
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(null); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [isOpen, setOpen]);
+  const active = !!value && !neutral;
   return (
-    <div className="py-2.5">
-      <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? open.filter((x) => x !== id) : [...open, id])}
-        className="flex w-full items-center justify-between gap-2 text-left">
-        <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-          {title}
-          {count > 0 && <span className="rounded-full px-1.5 text-[10px] font-black text-white" style={{ background: 'var(--brand-primary)' }}>{count}</span>}
+    <div ref={ref} className="relative">
+      <button type="button" aria-expanded={isOpen} aria-haspopup="menu" onClick={() => setOpen(isOpen ? null : id)}
+        className={`${pillCls} ${active ? pillOn : ''}`} style={active ? { background: 'var(--brand-primary)' } : undefined}>
+        {neutral && <Icon className="h-3.5 w-3.5" />}
+        <span className={active || neutral ? 'max-w-[150px] truncate' : ''}>
+          {neutral ? value : active ? value : label}
         </span>
-        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        {!neutral && <ChevronDown className={`h-3.5 w-3.5 opacity-70 transition-transform ${isOpen ? 'rotate-180' : ''}`} />}
       </button>
-      {isOpen && <div className="mt-2.5 flex flex-wrap gap-1.5">{children}</div>}
+      {isOpen && (
+        <div role="menu" aria-label={label}
+          className="absolute left-0 top-full z-30 mt-1.5 min-w-[190px] rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-white/10 dark:bg-slate-900">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
 
-function Chip({ on, onClick, color, children }: { on: boolean; onClick: () => void; color?: string; children: React.ReactNode }) {
+function MenuOption({ on, onClick, multi = false, children }: { on: boolean; onClick: () => void; multi?: boolean; children: React.ReactNode }) {
   return (
-    <button type="button" aria-pressed={on} onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold transition ${on ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/[0.07] dark:text-slate-300 dark:hover:bg-white/10'}`}
-      style={on ? { background: color ?? 'var(--brand-primary)' } : undefined}>
+    <button type="button" role={multi ? 'menuitemcheckbox' : 'menuitemradio'} aria-checked={on} onClick={onClick}
+      className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-[13px] font-semibold transition hover:bg-slate-50 dark:hover:bg-white/5 ${on ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}`}>
+      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${multi ? 'rounded-[5px]' : 'rounded-full'} border ${on ? 'border-transparent text-white' : 'border-slate-300 dark:border-white/20'}`}
+        style={on ? { background: 'var(--brand-primary)' } : undefined}>
+        {on && <Check className="h-3 w-3" strokeWidth={3} />}
+      </span>
       {children}
     </button>
   );
@@ -158,7 +189,7 @@ function MeusErros() {
 
   const bank = `/partners/${org.slug}/student/banco-de-questoes`;
   const [f, setF] = useState<Filters>(EMPTY_FILTERS);
-  const [openGroups, setOpenGroups] = useState<string[]>(['temp', 'subject']);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const toggle = (k: 'temps' | 'subjects', v: string) =>
     setF((cur) => ({ ...cur, [k]: cur[k].includes(v) ? cur[k].filter((x) => x !== v) : [...cur[k], v] }));
   const activeCount = f.temps.length + f.subjects.length + (f.acc !== 'all' ? 1 : 0) + (f.recency !== 'all' ? 1 : 0) + (f.onlyRedo ? 1 : 0);
@@ -248,60 +279,58 @@ function MeusErros() {
             })}
           </div>
 
-          {/* Filtros: temperatura e matéria abertos por padrão; os outros recolhidos */}
-          <section className="partner-elevated-card rounded-[20px] bg-white p-4 sm:p-5 dark:bg-slate-900" aria-label="Filtros">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="flex items-center gap-2 text-[13px] font-black text-slate-900 dark:text-white">
-                <SlidersHorizontal className="h-4 w-4 text-slate-400" /> Filtros
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">
-                  {visible.length} de {topics.length} temas
-                </span>
-                {activeCount > 0 && (
-                  <button type="button" onClick={() => setF(EMPTY_FILTERS)} className="text-[12px] font-bold text-slate-500 underline-offset-4 hover:underline dark:text-slate-300">Limpar</button>
-                )}
-              </p>
-              <label className="flex items-center gap-2 text-[12px] font-semibold text-slate-500 dark:text-slate-400">
-                Ordenar
-                <select aria-label="Ordenar" value={f.sort} onChange={(e) => setF({ ...f, sort: e.target.value as Filters['sort'] })}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-bold text-slate-700 outline-none dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-                  <option value="heat">Mais quente</option>
-                  <option value="acc">Menor acerto</option>
-                  <option value="recent">Erro mais recente</option>
-                  <option value="redo">Mais para refazer</option>
-                </select>
-              </label>
-            </div>
+          {/* Filtros: barra compacta à esquerda, cada filtro abre um menu pequeno (tudo fechado por padrão) */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="toolbar" aria-label="Filtros">
+            <FilterMenu id="temp" label="Temperatura" open={openMenu} setOpen={setOpenMenu}
+              value={f.temps.length ? f.temps.join(', ') : null}>
+              {HEAT_LEVELS.map((lv) => (
+                <MenuOption key={lv.label} on={f.temps.includes(lv.label)} onClick={() => toggle('temps', lv.label)} multi>
+                  <lv.icon className="h-3.5 w-3.5" style={{ color: lv.color }} /> {lv.label}
+                </MenuOption>
+              ))}
+            </FilterMenu>
+            <FilterMenu id="subject" label="Matéria" open={openMenu} setOpen={setOpenMenu}
+              value={f.subjects.length ? (f.subjects.length === 1 ? f.subjects[0] : `${f.subjects.length} matérias`) : null}>
+              {subjects.map(([s, n]) => (
+                <MenuOption key={s} on={f.subjects.includes(s)} onClick={() => toggle('subjects', s)} multi>
+                  <span className="flex-1">{s}</span><span className="text-slate-400">{n}</span>
+                </MenuOption>
+              ))}
+            </FilterMenu>
+            <FilterMenu id="acc" label="Acerto" open={openMenu} setOpen={setOpenMenu}
+              value={ACC_RANGES.find((r) => r.id === f.acc)?.label ?? null}>
+              {ACC_RANGES.map((r) => (
+                <MenuOption key={r.id} on={f.acc === r.id} onClick={() => { setF({ ...f, acc: f.acc === r.id ? 'all' : r.id }); setOpenMenu(null); }}>{r.label}</MenuOption>
+              ))}
+            </FilterMenu>
+            <FilterMenu id="recency" label="Último erro" open={openMenu} setOpen={setOpenMenu}
+              value={RECENCY.find((r) => r.id === f.recency)?.label ?? null}>
+              {RECENCY.map((r) => (
+                <MenuOption key={r.id} on={f.recency === r.id} onClick={() => { setF({ ...f, recency: f.recency === r.id ? 'all' : r.id }); setOpenMenu(null); }}>{r.label}</MenuOption>
+              ))}
+            </FilterMenu>
+            <button type="button" aria-pressed={f.onlyRedo} onClick={() => setF({ ...f, onlyRedo: !f.onlyRedo })}
+              className={`${pillCls} ${f.onlyRedo ? pillOn : ''}`} style={f.onlyRedo ? { background: 'var(--brand-primary)' } : undefined}>
+              <RotateCcw className="h-3.5 w-3.5" /> Para refazer
+            </button>
 
-            <div className="mt-3 divide-y divide-slate-100 dark:divide-white/5">
-              <FilterGroup id="temp" title="Temperatura" open={openGroups} setOpen={setOpenGroups} count={f.temps.length}>
-                {HEAT_LEVELS.map((lv) => (
-                  <Chip key={lv.label} on={f.temps.includes(lv.label)} onClick={() => toggle('temps', lv.label)} color={lv.color}>
-                    <lv.icon className="h-3.5 w-3.5" /> {lv.label}
-                  </Chip>
-                ))}
-              </FilterGroup>
-              <FilterGroup id="subject" title="Matéria" open={openGroups} setOpen={setOpenGroups} count={f.subjects.length}>
-                {subjects.map(([s, n]) => (
-                  <Chip key={s} on={f.subjects.includes(s)} onClick={() => toggle('subjects', s)}>
-                    {s} <span className="opacity-60">{n}</span>
-                  </Chip>
-                ))}
-              </FilterGroup>
-              <FilterGroup id="acc" title="Acerto" open={openGroups} setOpen={setOpenGroups} count={f.acc === 'all' ? 0 : 1}>
-                {ACC_RANGES.map((r) => (
-                  <Chip key={r.id} on={f.acc === r.id} onClick={() => setF({ ...f, acc: f.acc === r.id ? 'all' : r.id })}>{r.label}</Chip>
-                ))}
-              </FilterGroup>
-              <FilterGroup id="recency" title="Último erro" open={openGroups} setOpen={setOpenGroups} count={f.recency === 'all' ? 0 : 1}>
-                {RECENCY.map((r) => (
-                  <Chip key={r.id} on={f.recency === r.id} onClick={() => setF({ ...f, recency: f.recency === r.id ? 'all' : r.id })}>{r.label}</Chip>
-                ))}
-              </FilterGroup>
-              <FilterGroup id="redo" title="Questões para refazer" open={openGroups} setOpen={setOpenGroups} count={f.onlyRedo ? 1 : 0}>
-                <Chip on={f.onlyRedo} onClick={() => setF({ ...f, onlyRedo: !f.onlyRedo })}>Só temas com questões para refazer</Chip>
-              </FilterGroup>
-            </div>
-          </section>
+            <span className="mx-1 hidden h-5 w-px bg-slate-200 sm:block dark:bg-white/10" aria-hidden />
+            <FilterMenu id="sort" label="Ordenar" open={openMenu} setOpen={setOpenMenu} icon={ArrowUpDown}
+              value={SORTS.find((x) => x.id === f.sort)!.label} neutral>
+              {SORTS.map((x) => (
+                <MenuOption key={x.id} on={f.sort === x.id} onClick={() => { setF({ ...f, sort: x.id }); setOpenMenu(null); }}>{x.label}</MenuOption>
+              ))}
+            </FilterMenu>
+
+            {activeCount > 0 && (
+              <span className="flex items-center gap-2 pl-1 text-[12px] text-slate-500 dark:text-slate-400">
+                {visible.length} de {topics.length}
+                <button type="button" onClick={() => setF({ ...EMPTY_FILTERS, sort: f.sort })} className="inline-flex items-center gap-0.5 font-bold text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">
+                  <X className="h-3.5 w-3.5" /> Limpar
+                </button>
+              </span>
+            )}
+          </div>
 
           {visible.length === 0 ? (
             <div className="partner-elevated-card rounded-[20px] bg-white px-6 py-10 text-center dark:bg-slate-900">
