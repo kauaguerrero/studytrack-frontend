@@ -22,20 +22,27 @@ export interface StudyTimer {
 export interface TimerReport {
   from: string;
   to: string;
+  /** Timer + tempo registrado à mão no cronograma. */
   total_seconds: number;
+  timer_seconds?: number;
+  manual_seconds?: number;
   sessions: number;
-  by_subject: { subject: string; seconds: number; sessions: number; disciplines: { discipline: string; seconds: number }[] }[];
-  by_day: { date: string; seconds: number }[];
+  by_subject: { subject: string; seconds: number; sessions: number; timer_seconds?: number; manual_seconds?: number;
+    disciplines: { discipline: string; seconds: number }[] }[];
+  by_day: { date: string; seconds: number; manual_seconds?: number }[];
 }
 
 export interface OrgTimerReport {
   from: string;
   to: string;
   total_seconds: number;
+  timer_seconds?: number;
+  manual_seconds?: number;
   active_students: number;
   avg_seconds_active: number;
   by_subject: TimerReport['by_subject'];
   students: { user_id: string; name: string | null; seconds: number; sessions: number; last_at: string | null;
+    timer_seconds?: number; manual_seconds?: number;
     subjects: { subject: string; seconds: number }[] }[];
 }
 
@@ -58,6 +65,14 @@ export function formatDuration(total: number): string {
   const h = Math.floor(m / 60);
   const r = m % 60;
   return r ? `${h}h${String(r).padStart(2, '0')}` : `${h}h`;
+}
+
+/** "1h10 no timer · 40min registrados" (só as partes que existem). */
+export function formatSplit(timer = 0, manual = 0): string {
+  const parts: string[] = [];
+  if (timer) parts.push(`${formatDuration(timer)} no timer`);
+  if (manual) parts.push(`${formatDuration(manual)} registrados à mão`);
+  return parts.join(' · ');
 }
 
 export function broadcastTimer() {

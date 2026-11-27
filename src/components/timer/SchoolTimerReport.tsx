@@ -1,12 +1,12 @@
 'use client';
 
-// Coordenação: tempo de estudo (timer) por aluno e por matéria, com filtro de turma.
+// Coordenação: tempo de estudo (timer + registrado à mão no cronograma) por aluno e por matéria, com filtro de turma.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Timer as TimerIcon } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgClasses } from '@/lib/org-classes';
-import { formatDuration, timerFetch, type OrgTimerReport } from '@/lib/timer';
+import { formatDuration, formatSplit, timerFetch, type OrgTimerReport } from '@/lib/timer';
 import { PageShell } from '@/components/partners/PageShell';
 
 const sel = 'rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-white/10 dark:bg-white/5 dark:text-white';
@@ -36,7 +36,7 @@ export function SchoolTimerReport() {
       kicker="Ensino"
       icon={TimerIcon}
       title="Tempo de estudo"
-      description="Tempo que os alunos cronometraram no timer, por aluno e por matéria."
+      description="Tempo que os alunos cronometraram no timer ou registraram no cronograma, por aluno e por matéria."
       actions={<>
         <div className="flex gap-2">
           {classes.length > 0 && (
@@ -68,6 +68,9 @@ export function SchoolTimerReport() {
               </div>
             ))}
           </div>
+          {(report.manual_seconds ?? 0) > 0 && (
+            <p className="mt-3 text-xs text-slate-500 dark:text-white/50">{formatSplit(report.timer_seconds, report.manual_seconds)}</p>
+          )}
           {report.by_subject.length > 0 && (
             <p className="mt-4 text-xs text-slate-600 dark:text-white/65">
               Por matéria: {report.by_subject.map((s) => `${s.subject} ${formatDuration(s.seconds)}`).join(' · ')}
@@ -83,7 +86,12 @@ export function SchoolTimerReport() {
                 {report.students.map((s) => (
                   <tr key={s.user_id} className={s.seconds ? '' : 'text-slate-400 dark:text-white/40'}>
                     <td className="px-4 py-2 font-semibold">{s.name ?? 'Aluno'}</td>
-                    <td className="px-4 py-2 tabular-nums">{formatDuration(s.seconds)}</td>
+                    <td className="px-4 py-2 tabular-nums">
+                      {formatDuration(s.seconds)}
+                      {(s.manual_seconds ?? 0) > 0 && (
+                        <span className="block text-[11px] font-normal text-slate-500 dark:text-white/50">{formatSplit(s.timer_seconds, s.manual_seconds)}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2 tabular-nums">{s.sessions}</td>
                     <td className="px-4 py-2 text-xs">{s.subjects.slice(0, 3).map((x) => `${x.subject} ${formatDuration(x.seconds)}`).join(' · ') || '—'}</td>
                   </tr>

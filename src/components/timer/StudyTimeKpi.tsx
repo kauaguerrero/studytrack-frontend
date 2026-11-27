@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Timer as TimerIcon } from 'lucide-react';
-import { formatDuration, timerFetch, type TimerReport } from '@/lib/timer';
+import { formatDuration, formatSplit, timerFetch, type TimerReport } from '@/lib/timer';
 
 const WEEKDAY = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
@@ -19,7 +19,8 @@ export function splitWeeks(report: TimerReport) {
   const curTotal = sum(cur);
   const prevTotal = sum(prev);
   const delta = prevTotal ? Math.round(((curTotal - prevTotal) / prevTotal) * 100) : null;
-  return { cur, curTotal, prevTotal, delta, today: cur.at(-1)?.seconds ?? 0, activeDays: cur.filter((d) => d.seconds > 0).length };
+  const curManual = cur.reduce((a, d) => a + (d.manual_seconds ?? 0), 0);
+  return { cur, curTotal, curManual, prevTotal, delta, today: cur.at(-1)?.seconds ?? 0, activeDays: cur.filter((d) => d.seconds > 0).length };
 }
 
 export function StudyTimeKpi({ slug, accent }: { slug: string; accent: string }) {
@@ -67,10 +68,15 @@ export function StudyTimeKpi({ slug, accent }: { slug: string; accent: string })
               <p className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 dark:text-white" data-testid="study-time-total">
                 {formatDuration(w.curTotal)}
               </p>
+              {w.curManual > 0 && (
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="study-time-split">
+                  {formatSplit(w.curTotal - w.curManual, w.curManual)}
+                </p>
+              )}
               <p className={`mt-1 inline-flex items-center gap-1 text-sm font-semibold ${deltaTone}`} data-testid="study-time-delta">
                 <DeltaIcon className="h-4 w-4" />
                 {w.delta == null
-                  ? (w.curTotal ? 'Primeira semana cronometrada' : 'Ligue o timer para começar')
+                  ? (w.curTotal ? 'Primeira semana registrada' : 'Ligue o timer ou registre no cronograma')
                   : `${w.delta > 0 ? '+' : ''}${w.delta}% vs. 7 dias anteriores`}
               </p>
               <div className="mt-4 flex flex-wrap gap-2 text-xs">
