@@ -44,6 +44,10 @@ function groupReviews(items: PlanItem[]): ReviewGroup[] {
   return [...map.values()];
 }
 
+const WEEKLY_LABEL: Record<string, string> = {
+  top_errors: 'temas com mais erros', simulado: 'simulado', redacao: 'redação', outro: 'outro tema',
+};
+
 export function WeekBoard({
   days,
   items,
@@ -291,7 +295,9 @@ function DayColumn({
             <span className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">
               <Sparkles className="h-3 w-3" /> Revisão da semana
             </span>
-            <span className="mt-0.5 block text-[12px] font-semibold text-slate-800 dark:text-white/85">Escolha o que revisar →</span>
+            <span className="mt-0.5 block text-[12px] font-semibold text-slate-800 dark:text-white/85">
+              {day.weekly_review ? `Feita: ${WEEKLY_LABEL[day.weekly_review]} ✓` : 'Escolha o que revisar →'}
+            </span>
           </button>
         )}
         {blocks.map((b) => (

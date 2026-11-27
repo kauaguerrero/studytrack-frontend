@@ -115,6 +115,8 @@ export interface DayInfo {
   blocked: boolean;
   /** Dia da semana marcado como "só revisão" na rotina. */
   review_only?: boolean;
+  /** Escolha feita no card "Revisão da semana" (null = ainda não fez). */
+  weekly_review?: 'top_errors' | 'simulado' | 'redacao' | 'outro' | null;
   /** Simulado/redação reservados neste dia (já descontados de `capacity`). */
   blocks?: DayBlock[];
   /** Aulas da turma neste dia. */
