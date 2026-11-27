@@ -140,7 +140,6 @@ export default function TurmasPage() {
   const activeClasses = useMemo(() => classes.filter((c) => !c.archived_at), [classes]);
 
   const loadStudents = useCallback(async () => {
-    if (org.is_mock) { setStudentsLoading(false); return; }
     setStudentsLoading(true);
     try {
       const [list, asg] = await Promise.all([
@@ -154,7 +153,7 @@ export default function TurmasPage() {
     } finally {
       setStudentsLoading(false);
     }
-  }, [slug, org.is_mock]);
+  }, [slug]);
 
   useEffect(() => { void loadStudents(); }, [loadStudents]);
 

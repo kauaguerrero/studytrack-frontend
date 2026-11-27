@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -21,7 +21,6 @@ import {
   FileText,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useSidebar } from '@/contexts/SidebarContext';
 import { cn } from '@/lib/utils';
 
@@ -32,14 +31,12 @@ const ADMIN_ACCENT_ICON = 'text-indigo-500 dark:text-indigo-400';
 const ADMIN_ACCENT_ICON_ACTIVE = 'text-indigo-600 dark:text-indigo-300';
 const ADMIN_ACCENT_TEXT = 'text-indigo-600 dark:text-indigo-300';
 
-const EASE = 'ease-[cubic-bezier(0.16,1,0.3,1)]';
-
 interface PortalSidebarProps {
   role: UserRole;
   fullName: string;
   avatarUrl?: string;
   onCloseMobile?: () => void;
-  /** Quando true (sidebar desktop colapsada), esconde textos e mostra apenas ícones com tooltip. */
+  /** Quando true (sidebar desktop colapsada), esconde os textos e mostra só os ícones. */
   collapsed?: boolean;
 }
 
@@ -63,12 +60,13 @@ export function SidebarContent({
   const isActive = (path: string) =>
     pathname === path || pathname.startsWith(`${path}/`);
 
-  // Largura animada do rótulo — em vez de sumir de uma vez (mount/unmount),
-  // encolhe suavemente junto com a sidebar pra não parecer travado.
-  const labelWrapClasses = cn(
-    'overflow-hidden whitespace-nowrap transition-all duration-300',
-    EASE,
-    collapsed ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100',
+  // A geometria é a mesma recolhida ou aberta: ícones, logo e avatar ficam
+  // parados no mesmo x/y e só os rótulos aparecem/somem (opacidade). Nada
+  // troca de padding, tamanho ou altura no meio da animação — era isso que
+  // dava o "tranco" ao abrir.
+  const fade = cn(
+    'transition-opacity duration-200',
+    collapsed ? 'opacity-0 pointer-events-none' : 'opacity-100 delay-75',
   );
 
   const renderNavItem = ({
@@ -82,8 +80,8 @@ export function SidebarContent({
   }) => {
     const active = isActive(href);
     const baseClasses = cn(
-      'group flex items-center gap-3 min-h-[44px] rounded-lg text-sm font-medium transition-all duration-300',
-      EASE,
+      // pl fixo centraliza o ícone de 18px nos 56px do item recolhido
+      'group flex items-center gap-3 h-11 pl-[19px] pr-3 rounded-lg text-sm font-medium transition-colors duration-150',
       active
         ? isAdmin
           ? `bg-indigo-50/80 dark:bg-indigo-500/15 ${ADMIN_ACCENT_TEXT} shadow-sm`
@@ -101,51 +99,48 @@ export function SidebarContent({
           : 'text-slate-400 dark:text-muted-foreground group-hover:text-slate-600 dark:group-hover:text-sidebar-foreground',
     );
 
-    const content = (
+    return (
       <Link
         href={href}
         onClick={onCloseMobile}
-        className={
-          collapsed
-            ? `${baseClasses} justify-center px-0 py-2.5 w-full`
-            : `${baseClasses} px-3 py-2.5`
-        }
+        aria-label={collapsed ? label : undefined}
+        className={baseClasses}
       >
         <Icon size={18} className={iconClasses} />
-        <span className={labelWrapClasses}>{label}</span>
+        <span className={cn('min-w-0 flex-1 truncate', fade)}>{label}</span>
         {active && (
           <ChevronRight
             size={14}
             className={cn(
-              'ml-auto shrink-0 transition-opacity duration-300',
+              'shrink-0',
               isAdmin ? 'text-indigo-400 dark:text-indigo-300' : 'text-blue-400',
-              collapsed ? 'opacity-0 w-0' : 'opacity-100',
+              fade,
             )}
           />
         )}
       </Link>
     );
-
-    if (collapsed) {
-      return (
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>{content}</TooltipTrigger>
-          <TooltipContent side="right" sideOffset={8}>
-            {label}
-          </TooltipContent>
-        </Tooltip>
-      );
-    }
-    return content;
   };
 
+  // Altura fixa: recolhida vira um tracinho no lugar do texto, então os
+  // itens não sobem/descem quando a sidebar abre.
   const renderSectionTitle = (children: React.ReactNode) => {
     return (
-      <div className={cn('px-3 mt-6 mb-2 overflow-hidden transition-all duration-300', EASE, collapsed ? 'max-h-0 opacity-0 mt-0 mb-0' : 'max-h-8 opacity-100')}>
-        <span className={cn(
-          'text-[11px] font-bold uppercase tracking-widest leading-none whitespace-nowrap',
-          isAdmin ? 'text-indigo-400 dark:text-indigo-400/70' : 'text-slate-400 dark:text-muted-foreground',
-        )}>
+      <div className="relative h-8 mt-3 first:mt-0 flex items-center">
+        <span
+          aria-hidden
+          className={cn(
+            'absolute left-[19px] w-[18px] h-px bg-slate-200 dark:bg-sidebar-border transition-opacity duration-200',
+            collapsed ? 'opacity-100' : 'opacity-0',
+          )}
+        />
+        <span
+          className={cn(
+            'pl-3 text-[11px] font-bold uppercase tracking-widest leading-none whitespace-nowrap',
+            isAdmin ? 'text-indigo-400 dark:text-indigo-400/70' : 'text-slate-400 dark:text-muted-foreground',
+            fade,
+          )}
+        >
           {children}
         </span>
       </div>
@@ -169,27 +164,22 @@ export function SidebarContent({
   return (
     <div className="flex flex-col h-full bg-sidebar dark:bg-sidebar text-slate-900 dark:text-sidebar-foreground">
       {/* --- HEADER --- */}
-      <div className={cn(collapsed ? 'p-2 pb-2 flex justify-center' : 'p-5 pb-2')}>
+      <div className="h-[72px] shrink-0 flex items-center pl-[22px] pr-4">
         <Link
           href={portalHomeHref}
           onClick={onCloseMobile}
-          className={cn(
-            'group flex items-center transition-opacity hover:opacity-80',
-            collapsed ? 'justify-center' : 'w-fit',
-          )}
+          className="group flex items-center gap-2 min-w-0 transition-opacity hover:opacity-80"
         >
-          <div className="flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
-            <Image
-              src="/logost-transparente-sombra.png"
-              alt="Logo StudyTrack"
-              width={40}
-              height={40}
-              className={cn(collapsed ? 'w-8 h-8' : 'w-10 h-10', 'object-contain')}
-              priority
-              unoptimized
-            />
-          </div>
-          <div className={cn('ml-1 overflow-hidden transition-all duration-300', EASE, collapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[160px] opacity-100')}>
+          <Image
+            src="/logost-transparente-sombra.png"
+            alt="Logo StudyTrack"
+            width={36}
+            height={36}
+            className="w-9 h-9 shrink-0 object-contain"
+            priority
+            unoptimized
+          />
+          <div className={cn('min-w-0 overflow-hidden', fade)}>
             <h1 className="font-bold text-lg tracking-tight leading-none whitespace-nowrap text-slate-900 dark:text-sidebar-foreground">
               Study
               <span className={isAdmin ? 'text-indigo-500 dark:text-indigo-400' : 'text-blue-600 dark:text-sidebar-primary'}>
@@ -215,11 +205,7 @@ export function SidebarContent({
       </div>
 
       {/* --- NAVIGATION --- */}
-      <nav
-        className={`flex-1 overflow-y-auto custom-scrollbar ${
-          collapsed ? 'px-2 pb-4' : 'px-4 pb-4'
-        }`}
-      >
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-3 pb-4">
         {resolvedRole === 'admin' && (
           <div className="space-y-0.5">
             {renderSectionTitle('Visão Geral')}
@@ -246,12 +232,7 @@ export function SidebarContent({
           </div>
         )}
 
-        <div
-          className={cn(
-            'border-t border-slate-100 dark:border-sidebar-border pt-4 space-y-0.5',
-            collapsed ? 'mt-6' : 'mt-8',
-          )}
-        >
+        <div className="border-t border-slate-100 dark:border-sidebar-border pt-4 mt-6 space-y-0.5">
           {(resolvedRole === 'admin' || resolvedRole === 'dev') && (
             renderNavItem({
               href: resolvedRole === 'admin' ? '/portal/admin/profile' : '/portal',
@@ -270,8 +251,16 @@ export function SidebarContent({
       </nav>
 
       {/* --- USER FOOTER --- */}
-      <div className={cn('border-t border-slate-100 dark:border-sidebar-border', collapsed ? 'p-2' : 'p-4')}>
-        <div className="rounded-xl border bg-slate-50 dark:bg-sidebar-accent border-slate-100 dark:border-sidebar-border flex items-center gap-3 hover:border-blue-200 dark:hover:border-sidebar-ring hover:bg-blue-50/50 dark:hover:bg-sidebar-accent/80 transition-colors group cursor-default overflow-hidden">
+      {/* p-3 + borda + p-2 deixa o avatar de 36px centrado nos 80px recolhidos */}
+      <div className="shrink-0 border-t border-slate-100 dark:border-sidebar-border p-3">
+        <div
+          className={cn(
+            'rounded-xl border p-2 flex items-center gap-3 overflow-hidden transition-colors duration-200',
+            collapsed
+              ? 'border-transparent bg-transparent'
+              : 'bg-slate-50 dark:bg-sidebar-accent border-slate-100 dark:border-sidebar-border',
+          )}
+        >
           <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold overflow-hidden shrink-0 text-blue-700 dark:text-sidebar-primary-foreground bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600">
             {avatarUrl ? (
               <Image
@@ -285,15 +274,14 @@ export function SidebarContent({
               <span className="text-sm">{fullName.charAt(0)}</span>
             )}
           </div>
-          <div className={cn('flex-1 min-w-0 overflow-hidden transition-all duration-300', EASE, collapsed ? 'max-w-0 opacity-0' : 'max-w-[180px] opacity-100')}>
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-semibold truncate text-slate-900 dark:text-sidebar-foreground">
-                {fullName}
-              </p>
-            </div>
+          <div className={cn('flex-1 min-w-0 overflow-hidden', fade)}>
+            <p className="text-sm font-semibold truncate text-slate-900 dark:text-sidebar-foreground">
+              {fullName}
+            </p>
             <form action="/auth/signout" method="post">
               <button
                 type="submit"
+                tabIndex={collapsed ? -1 : undefined}
                 className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-muted-foreground hover:text-red-600 dark:hover:text-destructive font-medium transition-colors mt-0.5 w-full text-left whitespace-nowrap"
               >
                 <LogOut size={12} /> Sair da conta
@@ -311,32 +299,51 @@ export function PortalSidebar(props: PortalSidebarProps) {
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+  }, []);
+
   const handleMouseEnter = () => {
     if (!isCollapsed) return;
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    hoverTimer.current = setTimeout(() => setIsHovered(true), 120);
+    // Atraso curto: não abre quando o mouse só cruza a borda a caminho de
+    // outra coisa, sem parecer que a sidebar demora a responder.
+    hoverTimer.current = setTimeout(() => setIsHovered(true), 90);
   };
 
   const handleMouseLeave = () => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
-    // Pequeno atraso ao fechar também — evita o "flicker" de abrir/fechar
-    // rápido demais quando o mouse só passa de raspão pela borda.
-    hoverTimer.current = setTimeout(() => setIsHovered(false), 200);
+    hoverTimer.current = setTimeout(() => setIsHovered(false), 150);
   };
 
   const effectiveCollapsed = isCollapsed && !isHovered;
+  const overlaying = isCollapsed && isHovered;
 
   return (
+    // O <aside> só reserva o espaço na página. O painel de dentro é absoluto
+    // e, no hover, abre POR CIMA do conteúdo — antes a largura do aside
+    // animava e o dashboard inteiro era recalculado a cada quadro.
     <aside
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className={cn(
-        'hidden md:flex flex-col h-full z-0 sticky top-0 border-r border-slate-200 dark:border-sidebar-border shrink-0',
-        'transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width]',
-        effectiveCollapsed ? 'w-20' : 'w-64'
+        'hidden md:block relative z-30 h-full shrink-0',
+        isCollapsed ? 'w-20' : 'w-64',
       )}
     >
-      <SidebarContent {...props} collapsed={effectiveCollapsed} />
+      <div
+        className={cn(
+          'absolute inset-y-0 left-0 overflow-hidden bg-sidebar border-r border-slate-200 dark:border-sidebar-border',
+          'transition-[width,box-shadow] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          effectiveCollapsed ? 'w-20' : 'w-64',
+          overlaying ? 'shadow-[8px_0_32px_-12px_rgba(15,23,42,0.25)]' : 'shadow-none',
+        )}
+      >
+        {/* Conteúdo com largura fixa: a animação só revela, nunca refaz o layout interno */}
+        <div className="w-64 h-full">
+          <SidebarContent {...props} collapsed={effectiveCollapsed} />
+        </div>
+      </div>
     </aside>
   );
 }

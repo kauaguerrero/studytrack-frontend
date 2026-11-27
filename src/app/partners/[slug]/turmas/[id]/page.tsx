@@ -96,12 +96,12 @@ function TurmaInner() {
   const tab = params.get('aba') === 'faltas' ? 'faltas' : 'grade';
   const [klass, setKlass] = useState<OrgClass | null>(null);
 
+  // Turmas são reais até na escola de demonstração (P16): a grade e as faltas também.
   useEffect(() => {
-    if (org.is_mock) return;
     classesFetch<{ classes: OrgClass[] }>(slug, '/classes')
       .then((d) => setKlass(d.classes.find((c) => c.id === id) ?? null))
       .catch(() => setKlass(null));
-  }, [slug, id, org.is_mock]);
+  }, [slug, id]);
 
   return (
     <div className="min-h-full -mx-4 -mt-4 px-4 pt-4 pb-10 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
@@ -127,9 +127,7 @@ function TurmaInner() {
             />
           </div>
         </RevealItem>
-        {org.is_mock ? (
-          <p className="text-sm text-slate-500">Disponível na conta real da escola.</p>
-        ) : tab === 'grade' ? <ScheduleEditor slug={slug} classId={id} hex={org.brand_primary} /> : <AttendanceView slug={slug} classId={id} />}
+        {tab === 'grade' ? <ScheduleEditor slug={slug} classId={id} hex={org.brand_primary} /> : <AttendanceView slug={slug} classId={id} />}
       </RevealGroup>
     </div>
   );
