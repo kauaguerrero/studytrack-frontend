@@ -123,7 +123,9 @@ export default function TurmasPage() {
   const { org } = useOrg();
   const slug = org.slug;
   const [showArchived, setShowArchived] = useState(false);
-  const { classes, loading, error, reload } = useOrgClasses(slug, { includeArchived: showArchived, enabled: !org.is_mock });
+  // Turmas são reais até na escola de demonstração: antes a demo criava a turma e a
+  // lista seguia vazia (bateria Cenas, P16).
+  const { classes, loading, error, reload } = useOrgClasses(slug, { includeArchived: showArchived });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
