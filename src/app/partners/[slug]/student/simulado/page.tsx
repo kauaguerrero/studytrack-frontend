@@ -504,6 +504,15 @@ const START_STAGES = [
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
+/** Tempo restante ao retomar: limite da sessão (ou 3 min por questão) menos o que já
+ * passou desde o início. Sem limite e já estourado, sobra 5 min para não enviar sozinho. */
+function resumeTimeLeft(limitSecs: unknown, nQuestions: number, startedAtMs: number): number {
+  const limit = Number(limitSecs) > 0 ? Number(limitSecs) : 0
+  const budget = limit || nQuestions * 3 * 60
+  const left = budget - Math.floor((Date.now() - startedAtMs) / 1000)
+  return limit ? Math.max(0, left) : Math.max(5 * 60, left)
+}
+
 export default function SimuladoPage() {
   const router = useRouter()
   const { slug } = useParams<{ slug: string }>()
@@ -825,12 +834,12 @@ export default function SimuladoPage() {
         if (scheduledEndsAtRef.current) {
           restoredTimeLeft = Math.max(0, Math.floor((scheduledEndsAtRef.current.getTime() - Date.now()) / 1000))
         }
-        if (restoredTimeLeft <= 0) {
-          restoredTimeLeft = restoredQuestions.length * 3 * 60
-        }
-
         const startedAtMs = sessionData?.started_at ? new Date(sessionData.started_at).getTime() : Date.now()
         startTimeRef.current = Number.isNaN(startedAtMs) ? Date.now() : startedAtMs
+        if (restoredTimeLeft <= 0) {
+          // Rascunho sem tempo: conta a partir do início real da sessão (não recomeça do zero).
+          restoredTimeLeft = resumeTimeLeft(sessionData?.config?.time_limit_secs, restoredQuestions.length, startTimeRef.current)
+        }
         lastAutosavedRef.current = JSON.stringify(restoredAnswers)
         setSessionId(draft.sessionId)
         setIsScheduledSession(Boolean(sessionData?.config?.scheduled_simulado_id))
@@ -1405,9 +1414,10 @@ export default function SimuladoPage() {
       startTimeRef.current = Number.isNaN(startedAtMs) ? Date.now() : startedAtMs
       lastAutosavedRef.current = JSON.stringify(restoredAnswers)
       const sessionHasTimeLimit = Boolean(sessionData?.config?.time_limit_secs)
-      const initialTime = sessionHasTimeLimit
-        ? Math.max(0, Number(sessionData.config.time_limit_secs) - Math.floor((Date.now() - startTimeRef.current) / 1000))
-        : restoredQuestions.length * 3 * 60
+      // Retomar (lista mágica, simulado livre) continua o relógio de onde estava, pelo
+      // started_at do servidor — antes, sem limite de tempo, voltava ao total.
+      const initialTime = resumeTimeLeft(sessionHasTimeLimit ? sessionData.config.time_limit_secs : null,
+        restoredQuestions.length, startTimeRef.current)
 
       setSessionId(sid)
       setSessionOrigin(typeof sessionData?.config?.origin === 'string' ? sessionData.config.origin : null)
