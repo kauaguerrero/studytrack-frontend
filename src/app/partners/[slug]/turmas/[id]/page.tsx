@@ -421,7 +421,9 @@ function ScheduleEditor({ slug, classId, hex }: { slug: string; classId: string;
 // ─── Faltas ──────────────────────────────────────────────────────────────────
 
 function AttendanceView({ slug, classId }: { slug: string; classId: string }) {
-  const [days, setDays] = useState(30);
+  // Abre no mesmo período da regra de alerta (padrão 14 dias): antes abria em 30 e o
+  // texto do alerta falava em 14 (bateria Cenas).
+  const [days, setDays] = useState(14);
   const [report, setReport] = useState<AttendanceReport | null>(null);
   const [open, setOpen] = useState<string | null>(null);
 

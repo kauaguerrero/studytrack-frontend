@@ -104,7 +104,7 @@ export function StudentFlashcards() {
                       {SOURCE_LABEL[d.source] ?? (d.mine ? 'Meu baralho' : 'Da escola')}
                     </span>
                     <p className="font-display mt-2 line-clamp-2 text-[17px] font-black leading-snug text-slate-900 dark:text-white">{d.title}</p>
-                    <p className="text-[12.5px] text-slate-500 dark:text-slate-400">{d.subject ? `${d.subject} · ` : ''}{d.card_count} cartões</p>
+                    <p className="text-[12.5px] text-slate-500 dark:text-slate-400">{d.subject ? `${d.subject} · ` : ''}{d.card_count} {d.card_count === 1 ? 'cartão' : 'cartões'}</p>
                   </div>
                   {d.mine && (
                     <button type="button" aria-label={`Editar ${d.title}`} onClick={() => setEditing(d.id)}

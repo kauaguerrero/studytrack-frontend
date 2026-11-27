@@ -82,7 +82,7 @@ export function SchoolFlashcards() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{d.title}</p>
                 <p className="text-xs text-slate-500 dark:text-white/50">
-                  {d.card_count ?? 0} cartões{d.subject ? ` · ${d.subject}` : ''} · {className(d.visible_class_ids)}
+                  {d.card_count ?? 0} {(d.card_count ?? 0) === 1 ? 'cartão' : 'cartões'}{d.subject ? ` · ${d.subject}` : ''} · {className(d.visible_class_ids)}
                 </p>
               </div>
               <button type="button" aria-label={`Editar ${d.title}`} onClick={() => setEditing(d)}

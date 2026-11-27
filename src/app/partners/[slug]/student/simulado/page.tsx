@@ -339,6 +339,12 @@ function inferSessionBank(config?: SessionConfig): BankLabel {
 
 function getConfigLabel(session: SimuladoSession): string {
   const c = session.config || {}
+  // Simulado por gabarito (folha marcada no portal): o nome que a escola deu.
+  if ((c as { question_type?: string }).question_type === 'gabarito') {
+    const title = (c as { title?: string }).title || 'Simulado por gabarito'
+    const n = session.total_questions || c.qty || 0
+    return n ? `${title} · ${n}q` : title
+  }
   if (c.format && c.format !== 'custom') {
     const bankLabel = inferSessionBank(c)
     const formatList = bankLabel === 'UFU'

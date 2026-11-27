@@ -87,6 +87,17 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
     for (const it of items ?? []) {
       const k = it.occurrence_date ?? iso(new Date(it.starts_at));
       m.set(k, [...(m.get(k) ?? []), it]);
+      // Simulado com janela de vários dias: aparece em todos os dias em que está aberto.
+      if (it.source === 'simulado' && it.ends_at) {
+        const end = iso(new Date(it.ends_at));
+        const d = new Date(`${k}T12:00:00`);
+        for (let n = 0; n < 31; n++) {
+          d.setDate(d.getDate() + 1);
+          const dk = iso(d);
+          if (dk > end) break;
+          m.set(dk, [...(m.get(dk) ?? []), it]);
+        }
+      }
     }
     return m;
   }, [items]);
