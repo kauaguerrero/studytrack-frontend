@@ -22,7 +22,12 @@ export function EmbedBadge({ link }: { link: Pick<MenuLink, 'embeddable' | 'embe
   if (link.embeddable === false) {
     return <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600" title={link.embed_reason ?? undefined}><XCircle className="h-3.5 w-3.5" /> Abre em nova aba</span>;
   }
-  return <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500" title={link.embed_reason ?? undefined}><HelpCircle className="h-3.5 w-3.5" /> Não checado: abre em nova aba</span>;
+  // Checado, mas o site não respondeu (erro 404, fora do ar): mostrar o motivo, não "Não checado".
+  if (link.embed_reason) {
+    const code = /erro (\d{3})/.exec(link.embed_reason)?.[1];
+    return <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600" title={link.embed_reason}><XCircle className="h-3.5 w-3.5" /> {code ? `Fora do ar: erro ${code}` : link.embed_reason}</span>;
+  }
+  return <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500"><HelpCircle className="h-3.5 w-3.5" /> Não checado: abre em nova aba</span>;
 }
 
 export function SchoolLinks() {
