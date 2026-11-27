@@ -1,5 +1,6 @@
 'use client'
 
+import { extFromMime } from '@/lib/image-ext'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
@@ -416,8 +417,7 @@ export default function AdminProfilePage() {
     setAvatarUploading(true)
     try {
       const blob = await getCroppedAvatarBlob()
-      const ext = (['jpg','jpeg','png','webp'].includes(avatarCropFile.name.split('.').pop()?.toLowerCase() ?? ''))
-        ? avatarCropFile.name.split('.').pop()!.toLowerCase() : 'jpg'
+      const ext = extFromMime(blob.type)
       const path = `${user.id}_${Date.now()}.${ext}`
 
       if (profile?.avatar_url) {
@@ -427,7 +427,7 @@ export default function AdminProfilePage() {
 
       const { error: uploadError } = await supabase.storage
         .from(AVATAR_BUCKET)
-        .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+        .upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' })
       if (uploadError) throw uploadError
 
       const { data: { publicUrl } } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path)

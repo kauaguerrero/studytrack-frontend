@@ -1,5 +1,6 @@
 'use client'
 
+import { extFromMime } from '@/lib/image-ext'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useStudentTheme } from '@/contexts/StudentThemeContext'
@@ -698,9 +699,7 @@ export default function PerfilPage() {
     setAvatarUploading(true)
     try {
       const blob = await getCroppedAvatarBlob()
-      const ext = avatarCropFile.name.split('.').pop()?.toLowerCase() || 'jpg'
-      const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? ext : 'jpg'
-      const path = `${user.id}_${Date.now()}.${safeExt}`
+      const path = `${user.id}_${Date.now()}.${extFromMime(blob.type)}`
 
       if (profile?.avatar_url) {
         const oldPath = getAvatarPathFromPublicUrl(profile.avatar_url)
@@ -709,7 +708,7 @@ export default function PerfilPage() {
 
       const { error: uploadError } = await supabase.storage
         .from(AVATAR_BUCKET)
-        .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+        .upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' })
 
       if (uploadError) throw uploadError
 

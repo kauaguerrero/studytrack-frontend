@@ -1,5 +1,6 @@
 'use client';
 
+import { extFromMime } from '@/lib/image-ext'
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -414,9 +415,7 @@ export default function ConfiguracoesPage() {
       if (!session?.user?.id || !session.access_token) throw new Error('Sessão inválida.');
 
       const blob = await getCroppedAvatarBlob();
-      const ext = avatarCropFile.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const safeExt = ['png', 'svg', 'jpg', 'jpeg', 'webp'].includes(ext) ? ext : 'jpg';
-      const path = `${session.user.id}_${Date.now()}.${safeExt}`;
+      const path = `${session.user.id}_${Date.now()}.${extFromMime(blob.type)}`;
 
       const oldPath = avatarUrl ? getAvatarPathFromPublicUrl(avatarUrl) : null;
       if (oldPath) {
@@ -425,7 +424,7 @@ export default function ConfiguracoesPage() {
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+        .upload(path, blob, { upsert: true, contentType: blob.type || 'image/jpeg' });
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
