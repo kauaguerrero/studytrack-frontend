@@ -138,6 +138,20 @@ function TurmaInner() {
 // ─── Grade ───────────────────────────────────────────────────────────────────
 
 const EMPTY_SLOT = { weekday: 0, starts_at: '19:00', ends_at: '20:40', subject: '', title: '', plurall_url: '' };
+// Lista fechada (bateria Cenas I02.08): texto livre com erro de digitação ("historia")
+// desligava o "aula dada, aula estudada" sem aviso. O servidor também normaliza.
+const ENEM_SUBJECTS = ['Língua Portuguesa', 'Literatura', 'Redação', 'Inglês', 'Espanhol', 'Arte', 'História', 'Geografia',
+  'Filosofia', 'Sociologia', 'Biologia', 'Física', 'Química', 'Matemática'];
+
+function SubjectSelect({ id, value, options, onChange }: { id: string; value: string; options: string[]; onChange: (v: string) => void }) {
+  const list = value && !options.includes(value) ? [value, ...options] : options;
+  return (
+    <select id={id} className={inputCls} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">Escolha a matéria</option>
+      {list.map((s) => <option key={s} value={s}>{s}</option>)}
+    </select>
+  );
+}
 
 function ScheduleEditor({ slug, classId, hex }: { slug: string; classId: string; hex?: string }) {
   const [slots, setSlots] = useState<Slot[] | null>(null);
@@ -151,6 +165,16 @@ function ScheduleEditor({ slug, classId, hex }: { slug: string; classId: string;
   const [excTimes, setExcTimes] = useState({ starts_at: '', ends_at: '' });
   const [extra, setExtra] = useState<{ date: string; starts_at: string; ends_at: string; subject: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [subjects, setSubjects] = useState<string[]>(ENEM_SUBJECTS);
+
+  useEffect(() => {
+    classesFetch<{ subjects: { subject: string }[] }>(slug, '/subjects')
+      .then((d) => {
+        const extra = d.subjects.map((s) => s.subject).filter((s) => !ENEM_SUBJECTS.includes(s));
+        setSubjects([...ENEM_SUBJECTS, ...extra]);
+      })
+      .catch(() => undefined);
+  }, [slug]);
 
   const load = useCallback(async () => {
     try {
@@ -258,9 +282,8 @@ function ScheduleEditor({ slug, classId, hex }: { slug: string; classId: string;
                 <input id="slot-en" type="time" className={inputCls} value={form.ends_at} onChange={(e) => setForm({ ...form, ends_at: e.target.value })} />
               </div>
               <div>
-                <label className={labelCls} htmlFor="slot-subj">Matéria (como no banco de questões)</label>
-                <input id="slot-subj" className={inputCls} value={form.subject} maxLength={80} placeholder="Ex: Matemática"
-                  onChange={(e) => setForm({ ...form, subject: e.target.value })} />
+                <label className={labelCls} htmlFor="slot-subj">Matéria</label>
+                <SubjectSelect id="slot-subj" value={form.subject} options={subjects} onChange={(v) => setForm({ ...form, subject: v })} />
               </div>
               <div className="sm:col-span-2">
                 <label className={labelCls} htmlFor="slot-title">Título (opcional)</label>
@@ -364,7 +387,7 @@ function ScheduleEditor({ slug, classId, hex }: { slug: string; classId: string;
               <div><label className={labelCls} htmlFor="ex-en">Fim</label>
                 <input id="ex-en" type="time" className={inputCls} value={extra.ends_at} onChange={(e) => setExtra({ ...extra, ends_at: e.target.value })} /></div>
               <div><label className={labelCls} htmlFor="ex-subj">Matéria</label>
-                <input id="ex-subj" className={inputCls} value={extra.subject} maxLength={80} placeholder="Ex: Química" onChange={(e) => setExtra({ ...extra, subject: e.target.value })} /></div>
+                <SubjectSelect id="ex-subj" value={extra.subject} options={subjects} onChange={(v) => setExtra({ ...extra, subject: v })} /></div>
             </div>
             <div className="mt-3 flex justify-end gap-2">
               <button type="button" onClick={() => setExtra(null)}
