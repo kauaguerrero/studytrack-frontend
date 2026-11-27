@@ -1,5 +1,6 @@
 'use client'
 
+import { StudentCpfCard } from '@/components/integrations/StudentCpfCard'
 import { extFromMime } from '@/lib/image-ext'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -1209,6 +1210,7 @@ export default function PerfilPage() {
                       </BrandButton>
                     </CardFooter>
                   </Card>
+                  {org.permissions?.integracoes_enabled === true && org.permissions?.financeiro_enabled === true && <StudentCpfCard />}
                   </>
                 )
               )}

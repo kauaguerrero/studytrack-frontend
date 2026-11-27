@@ -22,6 +22,7 @@ interface ImportResult {
   imported: number;
   linked: number;
   assigned_to_class?: number;
+  cpf_saved?: number;
   errors: { row: number | null; email: string | null; reason: string }[];
 }
 
@@ -266,7 +267,7 @@ export default function ConvidarAlunosPage() {
               action={
                 <p className="max-w-[240px] text-right text-[11px] text-slate-400 dark:text-white/40">
                   Colunas <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">nome</code> e{' '}
-                  <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">email</code> (opcional: <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">turma</code>). Alunos com conta são vinculados automaticamente.
+                  <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">email</code> (opcionais: <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">turma</code> e <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">cpf</code>, que liga ao financeiro do Galileu). Alunos com conta são vinculados automaticamente.
                 </p>
               }
             />
@@ -419,7 +420,7 @@ export default function ConvidarAlunosPage() {
             )}
 
             {/* Resultado completo (erros e vinculados) */}
-            {result && (result.linked > 0 || result.errors.length > 0 || (result.assigned_to_class ?? 0) > 0) && (
+            {result && (result.linked > 0 || result.errors.length > 0 || (result.assigned_to_class ?? 0) > 0 || (result.cpf_saved ?? 0) > 0) && (
               <div className="space-y-2 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
                 <p className="text-sm font-semibold text-slate-700 dark:text-white">Detalhes da importação</p>
                 <div className="flex gap-4 text-sm">
@@ -428,6 +429,9 @@ export default function ConvidarAlunosPage() {
                   )}
                   {(result.assigned_to_class ?? 0) > 0 && (
                     <span className="text-emerald-600 dark:text-emerald-400 font-medium">{result.assigned_to_class} colocados na turma</span>
+                  )}
+                  {(result.cpf_saved ?? 0) > 0 && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">{result.cpf_saved} {result.cpf_saved === 1 ? 'CPF salvo' : 'CPFs salvos'}</span>
                   )}
                 </div>
                 {result.errors.length > 0 && (

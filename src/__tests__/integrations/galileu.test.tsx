@@ -11,7 +11,8 @@ vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({}) }));
 
 import { GalileuSettings } from '@/components/integrations/GalileuSettings';
 import { StudentFinance } from '@/components/integrations/StudentFinance';
-import { formatDateBR, groupInstallments, type Installment } from '@/lib/integrations';
+import { StudentCpfCard } from '@/components/integrations/StudentCpfCard';
+import { formatCpfInput, formatDateBR, groupInstallments, isValidCpf, type Installment } from '@/lib/integrations';
 
 beforeEach(() => { fetchMock.mockReset(); });
 
@@ -40,7 +41,7 @@ describe('Galileu — gestor', () => {
       }
       if (path === '/integrations/galileu/enabled') { st = { ...st, enabled: JSON.parse(String(init?.body)).enabled }; return Promise.resolve(st); }
       if (path === '/integrations/galileu/links') return Promise.resolve(links);
-      if (path === '/integrations/galileu/links/auto') return Promise.resolve({ linked_now: 1, without_match: 1, already_linked: 0 });
+      if (path === '/integrations/galileu/links/auto') return Promise.resolve({ linked_now: 1, linked_by_cpf: 0, linked_by_email: 1, without_match: 1, already_linked: 0 });
       if (path.startsWith('/integrations/galileu/search')) return Promise.resolve({ results: [{ id_aluno: '222', nome: 'Beatriz Lima', email: null, rm: 'R2', cpf: '***.654.321-**' }] });
       if (path === '/integrations/galileu/links/u2' && m === 'PUT') return Promise.resolve({ ok: true });
       return Promise.reject(new Error(`${m} ${path}`));
@@ -60,8 +61,8 @@ describe('Galileu — gestor', () => {
 
     expect(await screen.findByText('1 de 2 alunos ligados ao cadastro do Galileu.')).toBeInTheDocument();
     expect(screen.getByText(/Galileu: Ana Souza · pelo e-mail/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Vincular pelo e-mail/ }));
-    expect(await screen.findByText(/1 aluno\(s\) vinculado\(s\) pelo e-mail\. 1 sem correspondência/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Vincular por CPF e e-mail/ }));
+    expect(await screen.findByText(/1 aluno\(s\) vinculado\(s\) \(0 pelo CPF, 1 pelo e-mail\)\. 1 sem correspondência/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Vincular' }));
     const dlg = screen.getByRole('dialog', { name: 'Vincular ao Galileu' });
@@ -128,5 +129,76 @@ describe('Galileu — aluno', () => {
     expect(g.pagas.map((i) => i.id)).toEqual(['5', '4']);
     expect([...g.vencidas, ...g.abertas, ...g.pagas].some((i) => i.id === '3')).toBe(false);
     expect(formatDateBR('2026-01-01')).toBe('01/01/2026');
+  });
+});
+
+describe('Galileu: CPF e sugestão pelo nome (P24)', () => {
+  const linked = (over: Record<string, unknown> = {}) => ({ linked: 0, total: 2, suggestions: 1, cpf_pending: 1, students: [
+    { user_id: 'u2', name: 'Beatriz Lima', email: 'bia@x.com', cpf: null, cpf_pending: null, link: null,
+      suggestion: { id_aluno: '222', nome: 'BEATRIZ LIMA', email: null, rm: 'R2', cpf: null } },
+    { user_id: 'u1', name: 'Ana', email: 'ana@x.com', cpf: null, cpf_pending: '***.456.789-**', link: null, suggestion: null },
+  ], ...over });
+
+  it('CT-G06 gestor confirma ou descarta a sugestão e aprova o CPF do aluno', async () => {
+    fetchMock.mockImplementation((_s: string, path: string, init?: RequestInit) => {
+      if (path === '/integrations/galileu') return Promise.resolve(status({ configured: true, key_source: 'org', key_last4: 'ABCD' }));
+      if (path === '/integrations/galileu/links') return Promise.resolve(linked());
+      if (path.endsWith('/suggestion/confirm') || path.endsWith('/suggestion/dismiss')) return Promise.resolve({ ok: true });
+      if (path.endsWith('/cpf/approve')) return Promise.resolve({ ok: true, linked: true });
+      return Promise.reject(new Error(`${init?.method} ${path}`));
+    });
+    render(<GalileuSettings />);
+    expect(await screen.findByText(/1 sugestão\(ões\) pelo nome para confirmar · 1 CPF\(s\) informado\(s\) por alunos para aprovar/)).toBeInTheDocument();
+    expect(screen.getByText('BEATRIZ LIMA')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar vínculo/ }));
+    expect(await screen.findByText('Vínculo confirmado.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('cenas', '/integrations/galileu/links/u2/suggestion/confirm',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ external_student_id: '222' }) }));
+    fireEvent.click(screen.getByRole('button', { name: /Descartar/ }));
+    expect(await screen.findByText(/Sugestão descartada/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Aprovar CPF/ }));
+    expect(await screen.findByText('CPF aprovado e aluno vinculado pelo CPF.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('cenas', '/integrations/galileu/links/u1/cpf/approve', expect.objectContaining({ method: 'POST' }));
+  });
+
+  it('CT-G07 gestor cadastra o CPF: só envia CPF válido', async () => {
+    fetchMock.mockImplementation((_s: string, path: string) => {
+      if (path === '/integrations/galileu') return Promise.resolve(status({ configured: true, key_source: 'org' }));
+      if (path === '/integrations/galileu/links') return Promise.resolve(linked());
+      if (path === '/integrations/galileu/links/u2/cpf') return Promise.resolve({ ok: true, linked: true });
+      return Promise.reject(new Error(path));
+    });
+    render(<GalileuSettings />);
+    fireEvent.click(await screen.findByRole('button', { name: 'CPF de Beatriz Lima' }));
+    const dlg = screen.getByRole('dialog', { name: 'CPF do aluno' });
+    const inp = within(dlg).getByLabelText('CPF do aluno');
+    fireEvent.change(inp, { target: { value: '12345678900' } });
+    expect(inp).toHaveValue('123.456.789-00');
+    expect(within(dlg).getByText('CPF inválido.')).toBeInTheDocument();
+    expect(within(dlg).getByRole('button', { name: /Salvar/ })).toBeDisabled();
+    fireEvent.change(inp, { target: { value: '52998224725' } });
+    fireEvent.click(within(dlg).getByRole('button', { name: /Salvar/ }));
+    expect(await screen.findByText('CPF salvo e aluno vinculado pelo CPF.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('cenas', '/integrations/galileu/links/u2/cpf', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ cpf: '529.982.247-25' }) }));
+  });
+
+  it('CT-G08 aluno envia o CPF e vê que aguarda a aprovação', async () => {
+    fetchMock.mockImplementation((_s: string, path: string, init?: RequestInit) =>
+      Promise.resolve(init?.method === 'PUT' ? { cpf: null, pending: '***.982.247-**' } : { cpf: null, pending: null }));
+    render(<StudentCpfCard />);
+    const inp = await screen.findByLabelText('Seu CPF');
+    fireEvent.change(inp, { target: { value: '529.982.247-25' } });
+    fireEvent.click(screen.getByRole('button', { name: /Enviar CPF/ }));
+    expect(await screen.findByText('CPF enviado. A escola precisa aprovar.')).toBeInTheDocument();
+    expect(screen.getByText('***.982.247-**')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('cenas', '/my-cpf', expect.objectContaining({ method: 'PUT' }));
+  });
+
+  it('CT-G09 máscara e dígitos do CPF', () => {
+    expect(formatCpfInput('5299822')).toBe('529.982.2');
+    expect(formatCpfInput('52998224725999')).toBe('529.982.247-25');
+    expect(isValidCpf('529.982.247-25')).toBe(true);
+    expect(isValidCpf('111.111.111-11')).toBe(false);
+    expect(isValidCpf('529.982.247-24')).toBe(false);
   });
 });

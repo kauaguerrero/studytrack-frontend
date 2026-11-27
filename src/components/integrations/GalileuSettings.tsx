@@ -2,13 +2,16 @@
 
 // Gestor: integração com o Galileu (financeiro). Liga/desliga por escola, cola a
 // chave da API (o servidor testa antes de salvar e guarda cifrada) e vincula
-// cada aluno ao cadastro do Galileu — automático por e-mail ou manual.
+// cada aluno ao cadastro do Galileu: automático por CPF ou e-mail, sugestão pelo nome
+// (o gestor confirma ou descarta) ou manual. O CPF pode vir do gestor (aqui ou na
+// planilha) ou do aluno (perfil), e aí só vale depois da aprovação.
 
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, KeyRound, Link2, Loader2, Plug, Search, Trash2, Unlink, XCircle } from 'lucide-react';
+import { Check, CheckCircle2, KeyRound, Link2, Loader2, Plug, Search, Sparkles, Trash2, Unlink, X, XCircle } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import {
-  integrationsFetch, type GalileuStatus, type GalileuStudent, type LinkOverview, type LinkRow,
+  formatCpfInput, integrationsFetch, isValidCpf, MATCHED_BY_LABEL,
+  type GalileuStatus, type GalileuStudent, type LinkOverview, type LinkRow,
 } from '@/lib/integrations';
 import { PageShell } from '@/components/partners/PageShell';
 
@@ -29,6 +32,7 @@ export function GalileuSettings() {
   const [links, setLinks] = useState<LinkOverview | null>(null);
   const [linksError, setLinksError] = useState<string | null>(null);
   const [linking, setLinking] = useState<LinkRow | null>(null);
+  const [cpfFor, setCpfFor] = useState<LinkRow | null>(null);
 
   const run = async <T,>(tag: string, fn: () => Promise<T>, ok?: string): Promise<T | undefined> => {
     setBusy(tag);
@@ -76,9 +80,26 @@ export function GalileuSettings() {
     if (r) { setSt(r); setMsg(r.ok ? { ok: true, text: 'Conexão com o Galileu ok.' } : { ok: false, text: r.error || 'Falhou.' }); }
   };
   const autoLink = async () => {
-    const r = await run('auto', () => integrationsFetch<{ linked_now: number; without_match: number }>(slug, `${base}/links/auto`, { method: 'POST' }));
+    const r = await run('auto', () => integrationsFetch<{ linked_now: number; linked_by_cpf?: number; linked_by_email?: number; without_match: number }>(slug, `${base}/links/auto`, { method: 'POST' }));
     if (r) {
-      setMsg({ ok: true, text: `${r.linked_now} aluno(s) vinculado(s) pelo e-mail. ${r.without_match} sem correspondência — vincule à mão.` });
+      const cpf = r.linked_by_cpf ?? 0;
+      const email = r.linked_by_email ?? r.linked_now - cpf;
+      setMsg({ ok: true, text: `${r.linked_now} aluno(s) vinculado(s) (${cpf} pelo CPF, ${email} pelo e-mail). ${r.without_match} sem correspondência: confira as sugestões ou vincule à mão.` });
+      void loadLinks();
+    }
+  };
+  const suggestion = async (row: LinkRow, decision: 'confirm' | 'dismiss') => {
+    const sug = row.suggestion;
+    if (!sug) return;
+    const r = await run(`sg-${row.user_id}`, () => integrationsFetch(slug, `${base}/links/${row.user_id}/suggestion/${decision}`,
+      { method: 'POST', body: JSON.stringify({ external_student_id: sug.id_aluno }) }),
+      decision === 'confirm' ? 'Vínculo confirmado.' : 'Sugestão descartada. Vincule à mão quando achar o cadastro certo.');
+    if (r) void loadLinks();
+  };
+  const reviewCpf = async (row: LinkRow, decision: 'approve' | 'reject') => {
+    const r = await run(`cp-${row.user_id}`, () => integrationsFetch<{ ok: boolean; linked?: boolean }>(slug, `${base}/links/${row.user_id}/cpf/${decision}`, { method: 'POST' }));
+    if (r) {
+      setMsg({ ok: true, text: decision === 'reject' ? 'CPF recusado.' : r.linked ? 'CPF aprovado e aluno vinculado pelo CPF.' : 'CPF aprovado. Nenhum aluno do Galileu tem esse CPF ainda.' });
       void loadLinks();
     }
   };
@@ -160,9 +181,15 @@ export function GalileuSettings() {
               <p className="text-sm text-slate-500 dark:text-white/55">
                 {links ? `${links.linked} de ${links.total} alunos ligados ao cadastro do Galileu.` : 'Cada aluno precisa estar ligado ao cadastro dele no Galileu.'}
               </p>
+              {!!links && ((links.suggestions ?? 0) > 0 || (links.cpf_pending ?? 0) > 0) && (
+                <p className="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                  {[(links.suggestions ?? 0) > 0 && `${links.suggestions} sugestão(ões) pelo nome para confirmar`,
+                    (links.cpf_pending ?? 0) > 0 && `${links.cpf_pending} CPF(s) informado(s) por alunos para aprovar`].filter(Boolean).join(' · ')}
+                </p>
+              )}
             </div>
             <button type="button" className={btnPrimary} disabled={busy === 'auto'} onClick={() => void autoLink()}>
-              {busy === 'auto' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />} Vincular pelo e-mail
+              {busy === 'auto' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />} Vincular por CPF e e-mail
             </button>
           </div>
           {linksError && <p className="mt-3 text-sm text-red-600 dark:text-red-300">{linksError}</p>}
@@ -176,11 +203,32 @@ export function GalileuSettings() {
                     <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{row.name || row.email || 'Aluno'}</p>
                     <p className="truncate text-xs text-slate-500 dark:text-white/50">
                       {row.link
-                        ? <>Galileu: {row.link.galileu?.nome ?? `#${row.link.external_student_id}`} · {row.link.matched_by === 'email' ? 'pelo e-mail' : 'manual'}</>
+                        ? <>Galileu: {row.link.galileu?.nome ?? `#${row.link.external_student_id}`} · {MATCHED_BY_LABEL[row.link.matched_by] ?? row.link.matched_by}</>
                         : <>Sem vínculo · {row.email}</>}
+                      {' · '}{row.cpf ? <>CPF {row.cpf}</> : 'sem CPF'}
                     </p>
+                    {row.cpf_pending && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+                        <span>O aluno informou o CPF <b>{row.cpf_pending}</b></span>
+                        <button type="button" className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 font-bold text-white disabled:opacity-50"
+                          disabled={busy === `cp-${row.user_id}`} onClick={() => void reviewCpf(row, 'approve')}><Check className="h-3.5 w-3.5" /> Aprovar CPF</button>
+                        <button type="button" className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 font-bold text-slate-700 disabled:opacity-50 dark:border-white/15 dark:text-white/80"
+                          disabled={busy === `cp-${row.user_id}`} onClick={() => void reviewCpf(row, 'reject')}><X className="h-3.5 w-3.5" /> Recusar CPF</button>
+                      </div>
+                    )}
+                    {!row.link && row.suggestion && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-700 dark:text-white/80">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                        <span>Sugestão pelo nome: <b>{row.suggestion.nome}</b>{row.suggestion.rm ? ` · RM ${row.suggestion.rm}` : ''}{row.suggestion.email ? ` · ${row.suggestion.email}` : ''}</span>
+                        <button type="button" className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2.5 py-1 font-bold text-white disabled:opacity-50 dark:bg-white dark:text-slate-900"
+                          disabled={busy === `sg-${row.user_id}`} onClick={() => void suggestion(row, 'confirm')}><Check className="h-3.5 w-3.5" /> Confirmar vínculo</button>
+                        <button type="button" className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 font-bold text-slate-700 disabled:opacity-50 dark:border-white/15 dark:text-white/80"
+                          disabled={busy === `sg-${row.user_id}`} onClick={() => void suggestion(row, 'dismiss')}><X className="h-3.5 w-3.5" /> Descartar</button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
+                    <button type="button" aria-label={`CPF de ${row.name ?? row.email ?? 'aluno'}`} className={btnGhost} onClick={() => setCpfFor(row)}>{row.cpf ? 'Trocar CPF' : 'CPF'}</button>
                     <button type="button" className={btnGhost} onClick={() => setLinking(row)}>{row.link ? 'Trocar' : 'Vincular'}</button>
                     {row.link && (
                       <button type="button" aria-label={`Desvincular ${row.name ?? ''}`} className={btnGhost} disabled={busy === `un-${row.user_id}`} onClick={() => void unlink(row)}>
@@ -195,11 +243,62 @@ export function GalileuSettings() {
         </section>
       )}
 
+      {cpfFor && (
+        <CpfDialog slug={slug} row={cpfFor} onClose={() => setCpfFor(null)}
+          onSaved={(text) => { setCpfFor(null); setMsg({ ok: true, text }); void loadLinks(); }} />
+      )}
+
       {linking && (
         <LinkDialog slug={slug} row={linking} onClose={() => setLinking(null)}
           onLinked={() => { setLinking(null); setMsg({ ok: true, text: 'Aluno vinculado.' }); void loadLinks(); }} />
       )}
     </PageShell>
+  );
+}
+
+function CpfDialog({ slug, row, onClose, onSaved }: { slug: string; row: LinkRow; onClose: () => void; onSaved: (text: string) => void }) {
+  const [cpf, setCpf] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const path = `/integrations/galileu/links/${row.user_id}/cpf`;
+
+  const save = async () => {
+    setBusy(true); setError(null);
+    try {
+      const r = await integrationsFetch<{ ok: boolean; linked?: boolean }>(slug, path, { method: 'PUT', body: JSON.stringify({ cpf }) });
+      onSaved(r.linked ? 'CPF salvo e aluno vinculado pelo CPF.' : 'CPF salvo.');
+    } catch (e) { setError(e instanceof Error ? e.message : 'Erro ao salvar.'); setBusy(false); }
+  };
+  const remove = async () => {
+    if (!window.confirm('Apagar o CPF deste aluno? O vínculo atual continua.')) return;
+    setBusy(true); setError(null);
+    try { await integrationsFetch(slug, path, { method: 'DELETE' }); onSaved('CPF apagado.'); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Erro ao apagar.'); setBusy(false); }
+  };
+  const digits = cpf.replace(/\D/g, '');
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label="CPF do aluno" className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-base font-black text-slate-900 dark:text-white">CPF de {row.name || row.email}</h3>
+        <p className="mt-1 text-xs text-slate-500 dark:text-white/55">
+          {row.cpf ? <>Cadastrado: <b>{row.cpf}</b>. </> : null}O CPF salvo aqui já vale, sem aprovação, e liga o aluno ao Galileu quando o CPF bate.
+        </p>
+        <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); void save(); }}>
+          <input inputMode="numeric" autoComplete="off" aria-label="CPF do aluno" placeholder="000.000.000-00" className={input}
+            value={cpf} onChange={(e) => setCpf(formatCpfInput(e.target.value))} autoFocus />
+          <button type="submit" className={btnPrimary} disabled={busy || !isValidCpf(cpf)}>
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />} Salvar
+          </button>
+        </form>
+        {digits.length === 11 && !isValidCpf(cpf) && <p className="mt-2 text-xs text-red-600 dark:text-red-300">CPF inválido.</p>}
+        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-300">{error}</p>}
+        <div className="mt-4 flex justify-between">
+          {row.cpf ? <button type="button" className={btnGhost} disabled={busy} onClick={() => void remove()}><Trash2 className="h-4 w-4" /> Apagar CPF</button> : <span />}
+          <button type="button" className={btnGhost} onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

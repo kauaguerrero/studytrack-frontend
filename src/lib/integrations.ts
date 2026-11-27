@@ -23,14 +23,47 @@ export interface GalileuStatus {
 
 export interface GalileuStudent { id_aluno: string; nome: string | null; email: string | null; rm: string | null; cpf: string | null }
 
+export type MatchedBy = 'email' | 'cpf' | 'manual' | 'nome';
+
 export interface LinkRow {
   user_id: string;
   name: string | null;
   email: string | null;
-  link: null | { external_student_id: string; matched_by: 'email' | 'cpf' | 'manual'; galileu: GalileuStudent | null };
+  /** CPF aprovado, sempre mascarado (***.123.456-**). */
+  cpf?: string | null;
+  cpf_source?: 'integracoes' | 'planilha' | 'aluno' | null;
+  /** CPF que o aluno informou e espera a aprovação do gestor (mascarado). */
+  cpf_pending?: string | null;
+  /** Sem CPF aprovado: aluno do Galileu com o mesmo nome (único). O gestor confirma ou descarta. */
+  suggestion?: GalileuStudent | null;
+  link: null | { external_student_id: string; matched_by: MatchedBy; galileu: GalileuStudent | null };
 }
 
-export interface LinkOverview { students: LinkRow[]; linked: number; total: number }
+export interface LinkOverview { students: LinkRow[]; linked: number; total: number; suggestions?: number; cpf_pending?: number }
+
+export interface MyCpf { cpf: string | null; pending: string | null }
+
+export const MATCHED_BY_LABEL: Record<MatchedBy, string> = {
+  email: 'pelo e-mail', cpf: 'pelo CPF', manual: 'manual', nome: 'pelo nome (confirmado)',
+};
+
+/** Só dígitos, no máximo 11; formata 000.000.000-00 enquanto digita. */
+export function formatCpfInput(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11);
+  return d.replace(/^(\d{3})(\d)/, '$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d{1,2})$/, '.$1-$2');
+}
+
+/** Dígitos verificadores do CPF (o servidor confere de novo). */
+export function isValidCpf(v: string): boolean {
+  const d = v.replace(/\D/g, '');
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+  const dig = (n: number) => {
+    let s = 0;
+    for (let i = 0; i < n - 1; i++) s += Number(d[i]) * (n - i);
+    return ((s * 10) % 11) % 10;
+  };
+  return dig(10) === Number(d[9]) && dig(11) === Number(d[10]);
+}
 
 export type InstallmentStatus = 'paga' | 'aberta' | 'vencida' | 'cancelada' | 'outra';
 
