@@ -214,7 +214,7 @@ function CronogramaInner() {
     setRoutineBusy(true);
     try {
       const capacity = Object.fromEntries(Object.entries(v.capacity).map(([k, m]) => [String(k), m]));
-      const r = await cronogramaFetch<{ changed: boolean }>('/settings', {
+      const r = await cronogramaFetch<{ changed: boolean; warnings?: string[] }>('/settings', {
         method: 'PATCH',
         body: JSON.stringify({
           capacity, review_weekdays: v.reviewWeekdays, schedule_rules: v.rules ?? {},
@@ -224,6 +224,8 @@ function CronogramaInner() {
         }),
       });
       toast.success(r.changed ? 'Rotina atualizada. O cronograma foi reorganizado.' : 'Nada mudou na rotina.');
+      // Início dentro do horário de uma aula: avisa, não bloqueia.
+      for (const w of r.warnings ?? []) toast.warning(w, { duration: 8000 });
       setRoutineOpen(false);
       await refresh();
     } catch (e) {
