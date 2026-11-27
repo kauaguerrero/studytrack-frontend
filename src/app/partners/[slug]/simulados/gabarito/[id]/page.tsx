@@ -96,7 +96,9 @@ function Results({ data }: { data: ResultsResponse }) {
         <RevealItem>
           <p className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            Confira o gabarito das questões {suspicious.map((i) => i.number).join(', ')}: a maioria marcou a mesma outra letra.
+            {suspicious.length === 1
+              ? `Confira o gabarito da questão ${suspicious[0].number}: a maioria marcou a mesma outra letra.`
+              : `Confira o gabarito das questões ${suspicious.map((i) => i.number).join(', ')}: em cada uma, a maioria marcou a mesma outra letra.`}
           </p>
         </RevealItem>
       )}
