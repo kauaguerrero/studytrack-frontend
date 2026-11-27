@@ -78,7 +78,10 @@ export interface StudySession {
 export const fcFetch = classesFetch;
 
 /** Planilha frente;verso → cartões (lidos no backend, não grava). */
-export async function parseCardsCsv(slug: string, path: '/flashcard-decks/parse-csv' | '/flashcards/parse-csv', file: File): Promise<CardDraft[]> {
+export interface RejectedRow { line: number; error: string }
+
+/** Importação parcial: as linhas boas voltam em `cards`, as recusadas em `rejected`. */
+export async function parseCardsCsv(slug: string, path: '/flashcard-decks/parse-csv' | '/flashcards/parse-csv', file: File): Promise<{ cards: CardDraft[]; rejected: RejectedRow[] }> {
   const { data: { session } } = await createClient().auth.getSession();
   const form = new FormData();
   form.append('file', file);
@@ -87,7 +90,8 @@ export async function parseCardsCsv(slug: string, path: '/flashcard-decks/parse-
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((body as { error?: string }).error || 'Não foi possível ler a planilha.');
-  return (body as { cards: CardDraft[] }).cards;
+  const b = body as { cards: CardDraft[]; rejected?: RejectedRow[] };
+  return { cards: b.cards, rejected: b.rejected ?? [] };
 }
 
 export function cleanDrafts(cards: CardDraft[]): CardDraft[] {

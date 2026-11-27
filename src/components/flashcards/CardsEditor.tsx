@@ -6,7 +6,7 @@
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { FileSpreadsheet, Loader2, Plus, Trash2 } from 'lucide-react';
-import { parseCardsCsv, type CardDraft } from '@/lib/flashcards';
+import { parseCardsCsv, type CardDraft, type RejectedRow } from '@/lib/flashcards';
 
 const inputCls =
   'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-white';
@@ -19,15 +19,19 @@ export function CardsEditor({ slug, csvPath, cards, onChange }: {
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  const [rejected, setRejected] = useState<RejectedRow[]>([]);
   const set = (k: number, patch: Partial<CardDraft>) => onChange(cards.map((c, i) => (i === k ? { ...c, ...patch } : c)));
 
   const importCsv = async (file: File) => {
     setImporting(true);
     try {
-      const rows = await parseCardsCsv(slug, csvPath, file);
+      const { cards: rows, rejected: bad } = await parseCardsCsv(slug, csvPath, file);
       onChange([...cards.filter((c) => c.front.trim() || c.back.trim()), ...rows]);
-      toast.success(`${rows.length} cartões importados.`);
-    } catch (e) { toast.error(e instanceof Error ? e.message : 'Erro ao importar.'); }
+      setRejected(bad);
+      const ok = `${rows.length} ${rows.length === 1 ? 'cartão importado' : 'cartões importados'}`;
+      if (bad.length) toast.warning(`${ok}. ${bad.length} ${bad.length === 1 ? 'linha ficou' : 'linhas ficaram'} de fora (veja abaixo).`);
+      else toast.success(`${ok}.`);
+    } catch (e) { setRejected([]); toast.error(e instanceof Error ? e.message : 'Erro ao importar.'); }
     finally { setImporting(false); if (fileRef.current) fileRef.current.value = ''; }
   };
 
@@ -58,6 +62,14 @@ export function CardsEditor({ slug, csvPath, cards, onChange }: {
           {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />} Importar planilha
         </button>
       </div>
+      {rejected.length > 0 && (
+        <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-400/25 dark:bg-amber-500/10 dark:text-amber-100">
+          <p className="font-bold">Linhas da planilha que ficaram de fora:</p>
+          <ul className="mt-1 space-y-0.5">
+            {rejected.map((r) => <li key={r.line}>Linha {r.line}: {r.error}</li>)}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
