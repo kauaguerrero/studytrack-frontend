@@ -20,7 +20,7 @@ import {
   ExternalLink, Target, Activity, Github, TrendingUp, TrendingDown,
   Settings, Puzzle, Trophy, WalletCards, PenLine, ClipboardCheck,
   Video, LifeBuoy, BookOpen, BadgeCheck, ChevronRight, ChevronDown, Trash2, AlertTriangle,
-  EyeOff, UserPlus, Eye, Loader2, Sparkles,
+  EyeOff, UserPlus, Eye, Loader2, Sparkles, Radio,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -79,6 +79,7 @@ const MODULE_DEFS: ModuleDef[] = [
   { key: 'suporte_enabled',        label: 'Suporte',             description: 'Canal de suporte e FAQ para alunos e gestores.',              icon: LifeBuoy,       defaultEnabled: true,  affectsFounder: true,  affectsStudent: true  },
   { key: 'video_lessons_enabled',  label: 'Videoaulas',          description: 'Biblioteca de aulas em vídeo hospedada via Bunny CDN.',       icon: Video,          defaultEnabled: false, affectsFounder: true,  affectsStudent: true, subConfig: 'max_video_lessons' },
   { key: 'concursos_enabled', label: 'Concursos', description: 'Questões e simulados de concursos públicos.', icon: BookOpen, defaultEnabled: false, affectsFounder: true, affectsStudent: true },
+  { key: 'live_classes_enabled', label: 'Aulas ao Vivo', description: 'Aulas síncronas com câmera, enquete e chat em tempo real.', icon: Radio, defaultEnabled: false, affectsFounder: true, affectsStudent: true },
 ];
 
 interface PerOrgStats {
@@ -370,6 +371,7 @@ export default function SuperAdminDashboard() {
     simulados_enabled: true, redacoes_enabled: true, ranking_enabled: true,
     planos_enabled: true, banco_questoes_enabled: true, desempenho_enabled: true,
     titulos_enabled: true, suporte_enabled: true, video_lessons_enabled: false, concursos_enabled: false,
+    live_classes_enabled: false,
     allow_multiple_pending_essays: false, max_video_lessons: '',
   });
   const [savingModules, setSavingModules] = useState(false);
@@ -547,6 +549,7 @@ export default function SuperAdminDashboard() {
       suporte_enabled:        p.suporte_enabled        !== undefined ? Boolean(p.suporte_enabled)        : true,
       video_lessons_enabled:  p.video_lessons_enabled  !== undefined ? Boolean(p.video_lessons_enabled)  : false,
       concursos_enabled:      p.concursos_enabled      !== undefined ? Boolean(p.concursos_enabled)      : false,
+      live_classes_enabled:   p.live_classes_enabled   !== undefined ? Boolean(p.live_classes_enabled)   : false,
       allow_multiple_pending_essays: org.allow_multiple_pending_essays ?? false,
       max_video_lessons: org.max_video_lessons != null ? String(org.max_video_lessons) : '',
     });
@@ -569,6 +572,7 @@ export default function SuperAdminDashboard() {
         suporte_enabled:        modulesForm.suporte_enabled,
         video_lessons_enabled:  modulesForm.video_lessons_enabled,
         concursos_enabled:      modulesForm.concursos_enabled,
+        live_classes_enabled:   modulesForm.live_classes_enabled,
       };
       const res = await fetch(`/api/admin/b2b/organizations/${modulesModal.org.id}`, {
         method: 'PATCH',

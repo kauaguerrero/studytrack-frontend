@@ -31,6 +31,7 @@ import {
   Menu,
   LifeBuoy,
   Video,
+  Radio,
   FlaskConical,
   GraduationCap,
   Upload,
@@ -364,6 +365,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(perm('redacoes_enabled')  ? [{ href: `/partners/${org.slug}/redacoes`,  icon: PenLine,         label: 'Redações',         shortLabel: 'Redações'  }] : []),
     ...(perm('simulados_enabled') ? [{ href: `/partners/${org.slug}/simulados`, icon: ClipboardCheck,  label: 'Simulados',        shortLabel: 'Simulados' }] : []),
     ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
+    ...(perm('live_classes_enabled', false) ? [{ href: `/partners/${org.slug}/aulas-vivo`, icon: Radio, label: 'Aulas ao Vivo', shortLabel: 'Ao Vivo' }] : []),
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
     ...(perm('suporte_enabled')   ? [{ href: `/partners/${org.slug}/suporte`,   icon: LifeBuoy,        label: 'Suporte',          shortLabel: 'Suporte'   }] : []),
     ...(org.hasAssociates        ? [{ href: `/partners/${org.slug}/associados`, icon: UsersRound,      label: 'Associados',        shortLabel: 'Equipe'    }] : []),
@@ -379,6 +381,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(perm('desempenho_enabled')     ? [{ href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3,      label: 'Meu Desempenho', shortLabel: 'Desempenho'  }] : []),
     ...(perm('redacoes_enabled')       ? [{ href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,        label: 'Redações',       shortLabel: 'Redação'    }] : []),
     ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/student/aulas`,      icon: Video,          label: 'Aulas',          shortLabel: 'Aulas'       }] : []),
+    ...(perm('live_classes_enabled', false) ? [{ href: `/partners/${org.slug}/student/aulas-vivo`,  icon: Radio,          label: 'Aulas ao Vivo',  shortLabel: 'Ao Vivo'    }] : []),
     ...(perm('suporte_enabled')        ? [{ href: `/partners/${org.slug}/student/suporte`,           icon: LifeBuoy,       label: 'Suporte',        shortLabel: 'Suporte'     }] : []),
     { href: `/partners/${org.slug}/student/perfil`,             icon: User,           label: 'Perfil',         shortLabel: 'Perfil'      },
   ];
